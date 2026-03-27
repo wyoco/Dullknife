@@ -1,0 +1,42 @@
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Dullknife - Member Directory</title>
+      <link rel="stylesheet" href="/static/css/style.css">
+  </head>
+  <body>
+      <header>
+          <nav>
+              <div class="logo">Dullknife</div>
+              <ul>
+                  <li><a href="/directory">Member Directory</a></li>
+                  <li><a href="/login">Member Login</a></li>
+                  <li><a href="/apply">Apply for Membership</a></li>
+                  <li><a href="/about">About Us</a></li>
+              </ul>
+          </nav>
+      </header>
+      <main>
+          <h1>Member Directory</h1>
+          {% if members %}
+          <div class="directory">
+              {% for member in members %}
+              <div class="member-card">
+                  <h2>{{ member.last_name }}, {{ member.first_name }}</h2>
+                  <p class="disciplines">{{ member.disciplines or "No disciplines listed" }}</p>
+                  <p class="summary">{{ member.skills_summary or "" }}</p>
+                  <a href="/contact/{{ member.id }}" class="contact-link">Contact</a>
+              </div>
+              {% endfor %}
+          </div>
+          {% else %}
+          <p>No members found.</p>
+          {% endif %}
+      </main>
+      <footer>
+          <p>&copy; 2026 Dullknife</p>
+      </footer>
+  </body>
+  </html>
