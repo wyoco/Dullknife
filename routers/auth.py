@@ -1,10 +1,13 @@
-from fastapi import APIRouter, Request, Depends, Form, Response
+from fastapi import APIRouter, Request, Depends, Form, Response, UploadFile, File
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
 from typing import Optional, List
 import bcrypt
 from database import get_db
 import time
+import io
+import os
+from PIL import Image as PilImage
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -86,6 +89,22 @@ def login_failed(request: Request, attempts: int = 0):
         warning = f"WARNING: {attempts} failed login attempts detected. You have {remaining} more attempt(s) before this account is locked."
     return templates.TemplateResponse("login_failed.html", {"request": request, "warning": warning})
 
+MEMBER_IMAGE_DIR = "static/images"
+
+US_STATES = [
+    ("AL","Alabama"),("AK","Alaska"),("AZ","Arizona"),("AR","Arkansas"),("CA","California"),
+    ("CO","Colorado"),("CT","Connecticut"),("DE","Delaware"),("FL","Florida"),("GA","Georgia"),
+    ("HI","Hawaii"),("ID","Idaho"),("IL","Illinois"),("IN","Indiana"),("IA","Iowa"),
+    ("KS","Kansas"),("KY","Kentucky"),("LA","Louisiana"),("ME","Maine"),("MD","Maryland"),
+    ("MA","Massachusetts"),("MI","Michigan"),("MN","Minnesota"),("MS","Mississippi"),("MO","Missouri"),
+    ("MT","Montana"),("NE","Nebraska"),("NV","Nevada"),("NH","New Hampshire"),("NJ","New Jersey"),
+    ("NM","New Mexico"),("NY","New York"),("NC","North Carolina"),("ND","North Dakota"),("OH","Ohio"),
+    ("OK","Oklahoma"),("OR","Oregon"),("PA","Pennsylvania"),("RI","Rhode Island"),("SC","South Carolina"),
+    ("SD","South Dakota"),("TN","Tennessee"),("TX","Texas"),("UT","Utah"),("VT","Vermont"),
+    ("VA","Virginia"),("WA","Washington"),("WV","West Virginia"),("WI","Wisconsin"),("WY","Wyoming"),
+    ("DC","District of Columbia"),
+]
+
 @router.get("/member")
 def member_page(request: Request, db=Depends(get_db)):
     member_id = request.cookies.get("member_id")
@@ -107,13 +126,103 @@ def member_page(request: Request, db=Depends(get_db)):
         cursor.execute("SELECT id, name FROM disciplines ORDER BY name")
         all_disciplines = cursor.fetchall()
 
+    with db.cursor() as cursor:
+        cursor.execute("SELECT * FROM member_images WHERE member_id = %s ORDER BY is_active DESC, uploaded_at DESC", (member_id,))
+        images = cursor.fetchall()
+
+    with db.cursor() as cursor:
+        cursor.execute("SELECT name FROM wyoming_cities ORDER BY name")
+        wy_cities = [row["name"] for row in cursor.fetchall()]
+
     disciplines = [{"id": d["id"], "name": d["name"], "checked": d["id"] in member_disc_ids} for d in all_disciplines]
 
     return templates.TemplateResponse("member.html", {
         "request": request,
         "member": member,
-        "disciplines": disciplines
+        "disciplines": disciplines,
+        "images": images,
+        "wy_cities": wy_cities,
+        "us_states": US_STATES,
+        "upload_error": None,
     })
+
+
+@router.post("/member/upload-image")
+async def upload_image(request: Request, db=Depends(get_db), image: UploadFile = File(...)):
+    member_id = request.cookies.get("member_id")
+    if not member_id:
+        return RedirectResponse(url="/login", status_code=303)
+
+    contents = await image.read()
+    try:
+        img = PilImage.open(io.BytesIO(contents))
+        if img.size != (400, 400):
+            with db.cursor() as cursor:
+                cursor.execute("SELECT * FROM member_images WHERE member_id = %s ORDER BY is_active DESC, uploaded_at DESC", (member_id,))
+                images = cursor.fetchall()
+            with db.cursor() as cursor:
+                cursor.execute("SELECT * FROM members WHERE id = %s", (member_id,))
+                member = cursor.fetchone()
+            with db.cursor() as cursor:
+                cursor.execute("SELECT discipline_id FROM member_disciplines WHERE member_id = %s", (member_id,))
+                member_disc_ids = {row["discipline_id"] for row in cursor.fetchall()}
+            with db.cursor() as cursor:
+                cursor.execute("SELECT id, name FROM disciplines ORDER BY name")
+                all_disciplines = cursor.fetchall()
+            disciplines = [{"id": d["id"], "name": d["name"], "checked": d["id"] in member_disc_ids} for d in all_disciplines]
+            return templates.TemplateResponse("member.html", {
+                "request": request, "member": member, "disciplines": disciplines,
+                "images": images, "upload_error": f"Image must be exactly 400×400 px. Yours is {img.size[0]}×{img.size[1]} px."
+            })
+    except Exception:
+        return RedirectResponse(url="/member", status_code=303)
+
+    ext = os.path.splitext(image.filename)[1].lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+        return RedirectResponse(url="/member", status_code=303)
+
+    subdir = os.path.join(MEMBER_IMAGE_DIR, member_id)
+    os.makedirs(subdir, exist_ok=True)
+    hex_name = secrets.token_hex(12)
+    filename = f"{member_id}/{hex_name}{ext}"
+    with open(os.path.join(MEMBER_IMAGE_DIR, filename), "wb") as f:
+        f.write(contents)
+
+    with db.cursor() as cursor:
+        cursor.execute("INSERT INTO member_images (member_id, filename, is_active) VALUES (%s, %s, 0)", (member_id, filename))
+        db.commit()
+
+    return RedirectResponse(url="/member", status_code=303)
+
+
+@router.post("/member/set-active-image/{image_id}")
+def set_active_image(image_id: int, request: Request, db=Depends(get_db)):
+    member_id = request.cookies.get("member_id")
+    if not member_id:
+        return RedirectResponse(url="/login", status_code=303)
+    with db.cursor() as cursor:
+        cursor.execute("UPDATE member_images SET is_active = 0 WHERE member_id = %s", (member_id,))
+        cursor.execute("UPDATE member_images SET is_active = 1 WHERE id = %s AND member_id = %s", (image_id, member_id))
+        db.commit()
+    return RedirectResponse(url="/member", status_code=303)
+
+
+@router.post("/member/delete-image/{image_id}")
+def delete_image(image_id: int, request: Request, db=Depends(get_db)):
+    member_id = request.cookies.get("member_id")
+    if not member_id:
+        return RedirectResponse(url="/login", status_code=303)
+    with db.cursor() as cursor:
+        cursor.execute("SELECT filename FROM member_images WHERE id = %s AND member_id = %s", (image_id, member_id))
+        row = cursor.fetchone()
+    if row:
+        path = os.path.join(MEMBER_IMAGE_DIR, row["filename"])
+        if os.path.exists(path):
+            os.remove(path)
+        with db.cursor() as cursor:
+            cursor.execute("DELETE FROM member_images WHERE id = %s AND member_id = %s", (image_id, member_id))
+            db.commit()
+    return RedirectResponse(url="/member", status_code=303)
 
 @router.post("/member")
 def member_update(
@@ -171,6 +280,7 @@ def banned_account(request: Request):
 import secrets
 import re
 import datetime
+from utils.email import send_password_reset
 
 def password_strength(password):
     if len(password) < 8:
@@ -210,8 +320,7 @@ def reset_password_submit(request: Request, db=Depends(get_db), email: str = For
             )
             db.commit()
         reset_url = f"https://www.dullknife.com/change-password?token={token}"
-        print(f"[PASSWORD RESET] {reset_url}", flush=True)
-        # TODO: email reset_url to {email} when SMTP is configured
+        send_password_reset(email, reset_url)
 
     return templates.TemplateResponse("reset_password.html", {"request": request, "sent": True})
 
@@ -336,3 +445,83 @@ def new_member_cancel(request: Request):
     resp = RedirectResponse(url="/", status_code=303)
     resp.delete_cookie("member_id")
     return resp
+
+
+# ── Request Advertising ──────────────────────────────────────────────────────
+
+ADS_IMAGE_DIR = "static/images/ads"
+
+@router.get("/request-ad")
+def request_ad_page(request: Request, db=Depends(get_db)):
+    member_id = request.cookies.get("member_id")
+    if not member_id:
+        return RedirectResponse(url="/login", status_code=303)
+    with db.cursor() as cursor:
+        cursor.execute("SELECT id FROM members WHERE id = %s AND member_type = 'current'", (member_id,))
+        if not cursor.fetchone():
+            return RedirectResponse(url="/login", status_code=303)
+    with db.cursor() as cursor:
+        cursor.execute(
+            "SELECT * FROM advertisers WHERE member_id = %s ORDER BY created_at DESC",
+            (member_id,)
+        )
+        submissions = cursor.fetchall()
+    return templates.TemplateResponse("request_ad.html", {
+        "request": request, "submissions": submissions, "error": None, "success": False
+    })
+
+
+@router.post("/request-ad")
+async def request_ad_submit(
+    request: Request,
+    db=Depends(get_db),
+    company_name: str = Form(...),
+    website_url: Optional[str] = Form(None),
+    image: UploadFile = File(...),
+):
+    member_id = request.cookies.get("member_id")
+    if not member_id:
+        return RedirectResponse(url="/login", status_code=303)
+    with db.cursor() as cursor:
+        cursor.execute("SELECT id FROM members WHERE id = %s AND member_type = 'current'", (member_id,))
+        if not cursor.fetchone():
+            return RedirectResponse(url="/login", status_code=303)
+
+    def render_error(msg):
+        with db.cursor() as c:
+            c.execute("SELECT * FROM advertisers WHERE member_id = %s ORDER BY created_at DESC", (member_id,))
+            subs = c.fetchall()
+        return templates.TemplateResponse("request_ad.html", {
+            "request": request, "submissions": subs, "error": msg, "success": False
+        })
+
+    contents = await image.read()
+    try:
+        img = PilImage.open(io.BytesIO(contents))
+        if img.size != (300, 100):
+            return render_error(f"Image must be exactly 300×100 px. Yours is {img.size[0]}×{img.size[1]} px.")
+    except Exception:
+        return render_error("Could not read the image file. Please upload a valid image.")
+
+    ext = os.path.splitext(image.filename)[1].lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+        return render_error("Unsupported file type. Use .jpg, .jpeg, .png, .gif, or .webp.")
+
+    filename = secrets.token_hex(16) + ext
+    os.makedirs(ADS_IMAGE_DIR, exist_ok=True)
+    with open(os.path.join(ADS_IMAGE_DIR, filename), "wb") as f:
+        f.write(contents)
+
+    with db.cursor() as cursor:
+        cursor.execute(
+            "INSERT INTO advertisers (company_name, website_url, image_filename, member_id, status, display_order) VALUES (%s, %s, %s, %s, 'pending', 0)",
+            (company_name, website_url or None, filename, int(member_id))
+        )
+        db.commit()
+
+    with db.cursor() as cursor:
+        cursor.execute("SELECT * FROM advertisers WHERE member_id = %s ORDER BY created_at DESC", (member_id,))
+        submissions = cursor.fetchall()
+    return templates.TemplateResponse("request_ad.html", {
+        "request": request, "submissions": submissions, "error": None, "success": True
+    })

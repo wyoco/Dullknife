@@ -12,7 +12,19 @@
               <div class="logo"><a href="/">Dullknife</a></div>
               <ul>
                   <li><a href="/directory">Member Directory</a></li>
-                  <li>{% if request.cookies.get("member_id") %}<a href="/logout">Logout</a>{% else %}<a href="/login">Member Login</a>{% endif %}</li>
+                  <li>
+                      {% if request.cookies.get("member_id") %}
+                      <details class="nav-dropdown">
+                          <summary>My Account ▾</summary>
+                          <ul>
+                              <li><a href="/member">My Page</a></li>
+                              <li><a href="/logout">Logout</a></li>
+                          </ul>
+                      </details>
+                      {% else %}
+                      <a href="/login">Member Login</a>
+                      {% endif %}
+                  </li>
                   <li><a href="/apply">Apply for Membership</a></li>
                   <li><a href="/about">About Us</a></li>
               </ul>
@@ -21,6 +33,48 @@
       <main>
           <h1>Welcome to Dullknife</h1>
           <p>A community of developers based in Wyoming and beyond.</p>
+
+          {% if featured %}
+          <div class="featured-section">
+              <h2>Featured Members</h2>
+              <div class="featured-members">
+                  {% for m in featured %}
+                  <div class="featured-card">
+                      <div class="member-info-top">
+                          {% if m.image_filename %}
+                          <a href="/profile/{{ m.id }}"><img src="/static/images/{{ m.image_filename }}" alt="{{ m.first_name }} {{ m.last_name }}" class="featured-thumb"></a>
+                          {% else %}
+                          <a href="/profile/{{ m.id }}"><div class="featured-thumb featured-thumb-placeholder"></div></a>
+                          {% endif %}
+                          <a href="/profile/{{ m.id }}" class="member-name profile-link">{{ m.first_name }} {{ m.last_name }}</a>
+                          <span class="member-disciplines">{{ m.disciplines or '' }}</span>
+                          <a href="/contact/{{ m.id }}" class="contact-link">Contact</a>
+                      </div>
+                      {% if m.skills_summary %}
+                      <div class="member-skills">{{ m.skills_summary }}</div>
+                      {% endif %}
+                  </div>
+                  {% endfor %}
+              </div>
+              <p style="margin-top:1rem;"><a href="/directory">Browse all members &rarr;</a></p>
+          </div>
+          {% endif %}
+
+          {% if ads %}
+          <div class="ad-strip">
+              {% for ad in ads %}
+              <div class="ad-item">
+                  {% if ad.website_url %}
+                  <a href="{{ ad.website_url }}" target="_blank" rel="noopener">
+                      <img src="/static/images/ads/{{ ad.image_filename }}" alt="{{ ad.company_name }}">
+                  </a>
+                  {% else %}
+                  <img src="/static/images/ads/{{ ad.image_filename }}" alt="{{ ad.company_name }}">
+                  {% endif %}
+              </div>
+              {% endfor %}
+          </div>
+          {% endif %}
       </main>
       <footer>
           <p>&copy; 2026 Dullknife</p>

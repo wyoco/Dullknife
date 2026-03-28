@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Request, Depends, Form                                                                              
+from fastapi import APIRouter, Request, Depends, Form
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse                                                                                     
-from typing import Optional, List                         
-from database import get_db                                                                                                        
-                                                          
+from fastapi.responses import RedirectResponse
+from typing import Optional, List
+from database import get_db
+from routers.auth import US_STATES
+
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
@@ -12,11 +13,18 @@ def get_disciplines(db):
         cursor.execute("SELECT id, name FROM disciplines ORDER BY name")
         return cursor.fetchall()
 
+def get_wy_cities(db):
+    with db.cursor() as cursor:
+        cursor.execute("SELECT name FROM wyoming_cities ORDER BY name")
+        return [row["name"] for row in cursor.fetchall()]
+
 @router.get("/apply")
 def apply_page(request: Request, db=Depends(get_db)):
     return templates.TemplateResponse("apply.html", {
         "request": request,
         "disciplines": get_disciplines(db),
+        "wy_cities": get_wy_cities(db),
+        "us_states": US_STATES,
         "error": None
     })
 
@@ -44,6 +52,8 @@ def apply_submit(
             return templates.TemplateResponse("apply.html", {
                 "request": request,
                 "disciplines": get_disciplines(db),
+                "wy_cities": get_wy_cities(db),
+                "us_states": US_STATES,
                 "error": f"Username '{username}' is already taken. Please choose another."
             })
         cursor.execute("""

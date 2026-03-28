@@ -1,7 +1,7 @@
-<!DOCTYPE html>                                                                                                                    
+<!DOCTYPE html>
 <html lang="en">
-<head>                                                                                                                             
-    <meta charset="UTF-8">                                
+<head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dullknife - Apply for Membership</title>
     <link rel="stylesheet" href="/static/css/style.css">
@@ -12,7 +12,19 @@
             <div class="logo"><a href="/">Dullknife</a></div>
             <ul>
                 <li><a href="/directory">Member Directory</a></li>
-                <li>{% if request.cookies.get("member_id") %}<a href="/logout">Logout</a>{% else %}<a href="/login">Member Login</a>{% endif %}</li>
+                <li>
+                    {% if request.cookies.get("member_id") %}
+                    <details class="nav-dropdown">
+                        <summary>My Account ▾</summary>
+                        <ul>
+                            <li><a href="/member">My Page</a></li>
+                            <li><a href="/logout">Logout</a></li>
+                        </ul>
+                    </details>
+                    {% else %}
+                    <a href="/login">Member Login</a>
+                    {% endif %}
+                </li>
                 <li><a href="/apply">Apply for Membership</a></li>
                 <li><a href="/about">About Us</a></li>
             </ul>
@@ -23,10 +35,10 @@
         {% if error %}
         <p class="error">{{ error }}</p>
         {% endif %}
-        <form method="post" action="/apply">
+        <form method="post" action="/apply" id="apply-form">
             <div class="form-group">
                 <label>Username *</label>
-                <input type="text" name="username" required>
+                <input type="text" name="username" required autofocus>
             </div>
             <div class="form-group">
                 <label>First Name *</label>
@@ -48,18 +60,40 @@
                 <label>Address *</label>
                 <input type="text" name="address" required>
             </div>
-            <div class="form-group">
-                <label>City *</label>
-                <input type="text" name="city" required>
-            </div>
+
+            <!-- State -->
             <div class="form-group">
                 <label>State *</label>
-                <input type="text" name="state" required>
+                <select name="state" id="state-select" required onchange="handleStateChange()">
+                    <option value="">-- Select State --</option>
+                    {% for abbr, name in us_states %}
+                    <option value="{{ abbr }}">{{ abbr }} — {{ name }}</option>
+                    {% endfor %}
+                </select>
             </div>
+
+            <!-- City -->
             <div class="form-group">
-                <label>Zip Code *</label>
-                <input type="text" name="zipcode" required>
+                <label>City *</label>
+                <input type="text" name="city" id="city-text" required>
+                <select name="city" id="city-select" style="display:none" disabled required
+                        onchange="handleCityChange()">
+                    <option value="">-- Select City --</option>
+                    {% for city in wy_cities %}
+                    <option value="{{ city }}">{{ city }}</option>
+                    {% endfor %}
+                </select>
             </div>
+
+            <!-- ZIP -->
+            <div class="form-group">
+                <label>ZIP Code *</label>
+                <input type="text" name="zipcode" id="zip-text" required>
+                <select name="zipcode" id="zip-select" style="display:none" disabled required>
+                    <option value="">-- Select ZIP --</option>
+                </select>
+            </div>
+
             <div class="form-group">
                 <label>Phone 1 *</label>
                 <input type="text" name="phone_1" required>
@@ -74,17 +108,17 @@
             </div>
             <div class="form-group">
                 <label>Disciplines (select at least one) *</label>
-                <div class="disciplines-list">
+                <div class="disciplines">
                     {% for discipline in disciplines %}
-                    <label>
-                        <input type="checkbox" name="discipline_ids" value="{{ discipline.id }}">
+                    <label class="checkbox-label">
                         {{ discipline.name }}
+                        <input type="checkbox" name="discipline_ids" value="{{ discipline.id }}">
                     </label>
                     {% endfor %}
                 </div>
             </div>
             <div class="form-buttons">
-                <button type="submit">Submit</button>
+                <button type="submit">Submit Application</button>
                 <a href="/" class="button">Cancel</a>
             </div>
         </form>
@@ -92,5 +126,60 @@
     <footer>
         <p>&copy; 2026 Dullknife</p>
     </footer>
+    <script>
+        function handleStateChange() {
+            var state = document.getElementById('state-select').value;
+            if (state === 'WY') {
+                document.getElementById('city-text').style.display = 'none';
+                document.getElementById('city-text').disabled = true;
+                document.getElementById('city-text').required = false;
+                document.getElementById('city-select').style.display = 'block';
+                document.getElementById('city-select').disabled = false;
+                document.getElementById('city-select').required = true;
+                document.getElementById('city-select').value = '';
+                document.getElementById('zip-text').style.display = 'none';
+                document.getElementById('zip-text').disabled = true;
+                document.getElementById('zip-text').required = false;
+                document.getElementById('zip-select').style.display = 'block';
+                document.getElementById('zip-select').disabled = false;
+                document.getElementById('zip-select').required = true;
+                document.getElementById('zip-select').innerHTML = '<option value="">-- Select ZIP --</option>';
+            } else {
+                forceOtherMode();
+            }
+        }
+
+        function forceOtherMode() {
+            document.getElementById('city-select').style.display = 'none';
+            document.getElementById('city-select').disabled = true;
+            document.getElementById('city-select').required = false;
+            document.getElementById('city-text').style.display = 'block';
+            document.getElementById('city-text').disabled = false;
+            document.getElementById('city-text').required = true;
+            document.getElementById('zip-select').style.display = 'none';
+            document.getElementById('zip-select').disabled = true;
+            document.getElementById('zip-select').required = false;
+            document.getElementById('zip-text').style.display = 'block';
+            document.getElementById('zip-text').disabled = false;
+            document.getElementById('zip-text').required = true;
+        }
+
+        function handleCityChange() {
+            var city = document.getElementById('city-select').value;
+            var zipSel = document.getElementById('zip-select');
+            zipSel.innerHTML = '<option value="">-- Select ZIP --</option>';
+            if (!city) return;
+            fetch('/api/wyoming-zipcodes/' + encodeURIComponent(city))
+                .then(function(r) { return r.json(); })
+                .then(function(zips) {
+                    zips.forEach(function(z) {
+                        var opt = document.createElement('option');
+                        opt.value = z; opt.textContent = z;
+                        zipSel.appendChild(opt);
+                    });
+                    if (zips.length === 1) zipSel.value = zips[0];
+                });
+        }
+    </script>
 </body>
 </html>

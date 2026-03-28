@@ -1,11 +1,18 @@
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from typing import Optional
 from database import get_db
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+
+@router.get("/api/wyoming-zipcodes/{city}")
+def wyoming_zipcodes_api(city: str, db=Depends(get_db)):
+    with db.cursor() as cursor:
+        cursor.execute("SELECT zipcode FROM wyoming_zipcodes WHERE city_name = %s ORDER BY zipcode", (city,))
+        zips = [row["zipcode"] for row in cursor.fetchall()]
+    return JSONResponse(content=zips)
 
 @router.get("/about")
 def about_page(request: Request):

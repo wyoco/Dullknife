@@ -1,3 +1,5 @@
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,15 +12,29 @@
             <div class="logo"><a href="/">Dullknife</a></div>
             <ul>
                 <li><a href="/directory">Member Directory</a></li>
-                <li>{% if request.cookies.get("member_id") %}<a href="/logout">Logout</a>{% else %}<a href="/login">Member Login</a>{% endif %}</li>
+                <li>
+                    {% if request.cookies.get("member_id") %}
+                    <details class="nav-dropdown">
+                        <summary>My Account ▾</summary>
+                        <ul>
+                            <li><a href="/member">My Page</a></li>
+                            <li><a href="/logout">Logout</a></li>
+                        </ul>
+                    </details>
+                    {% else %}
+                    <a href="/login">Member Login</a>
+                    {% endif %}
+                </li>
                 <li><a href="/apply">Apply for Membership</a></li>
                 <li><a href="/about">About Us</a></li>
             </ul>
         </nav>
     </header>
     <main>
-        <h1>Member Directory</h1>
+        <h1 class="directory-title">Member Directory</h1>
+        <p class="search-instructions">To search you can select a radio button, or multiple radio buttons and click 'Search'. Or, you can enter search terms in the 'Search Skills' search box — searches member skills, name, and city. Or, you can do both.</p>
         <form method="get" action="/directory" class="search-form">
+            <h2>Disciplines</h2>
             <div class="disciplines-list">
                 {% for discipline in disciplines %}
                 <label>
@@ -28,6 +44,7 @@
                 </label>
                 {% endfor %}
             </div>
+            <h2>Search Skills or City</h2>
             <div class="search-box">
                 <input type="text" name="search" value="{{ search }}" placeholder="Search skills...">
             </div>
@@ -37,16 +54,44 @@
             </div>
         </form>
         {% if members %}
-        <div class="directory">
+        <div class="featured-members">
             {% for member in members %}
-            <div class="member-card">
-                <h2>{{ member.last_name }}, {{ member.first_name }}</h2>
-                <p class="disciplines">{{ member.disciplines or "No disciplines listed" }}</p>
-                <p class="summary">{{ member.skills_summary or "" }}</p>
-                <a href="/contact/{{ member.id }}" class="contact-link">Contact</a>
+            <div class="featured-card">
+                <div class="member-info-top">
+                    {% if member.image %}
+                    <a href="/profile/{{ member.id }}"><img src="/static/images/{{ member.image }}" alt="{{ member.first_name }} {{ member.last_name }}" class="featured-thumb"></a>
+                    {% else %}
+                    <a href="/profile/{{ member.id }}"><div class="featured-thumb featured-thumb-placeholder"></div></a>
+                    {% endif %}
+                    <a href="/profile/{{ member.id }}" class="member-name profile-link">{{ member.first_name }} {{ member.last_name }}</a>
+                    <span class="member-disciplines">{{ member.disciplines or '' }}</span>
+                    <a href="/contact/{{ member.id }}" class="contact-link">Contact</a>
+                </div>
+                {% if member.skills_summary %}
+                <div class="member-skills">{{ member.skills_summary }}</div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            {% if page > 1 %}
+            <a href="/directory?{{ query_base }}page=1">&laquo;</a>
+            <a href="/directory?{{ query_base }}page={{ page - 1 }}">&lsaquo;</a>
+            {% else %}
+            <span class="pg-disabled">&laquo;</span>
+            <span class="pg-disabled">&lsaquo;</span>
+            {% endif %}
+            <span class="pg-info">{{ page }} / {{ total_pages }}</span>
+            {% if page < total_pages %}
+            <a href="/directory?{{ query_base }}page={{ page + 1 }}">&rsaquo;</a>
+            <a href="/directory?{{ query_base }}page={{ total_pages }}">&raquo;</a>
+            {% else %}
+            <span class="pg-disabled">&rsaquo;</span>
+            <span class="pg-disabled">&raquo;</span>
+            {% endif %}
+        </div>
+        {% endif %}
         {% else %}
         <p>No members found.</p>
         {% endif %}
