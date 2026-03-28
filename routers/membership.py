@@ -2,7 +2,8 @@ from fastapi import APIRouter, Request, Depends, Form
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse                                                                                     
 from typing import Optional, List                         
-from database import get_db                                                                                                        
+from database import get_db
+from utils.recaptcha import verify_recaptcha                                                                                                        
                                                           
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -24,6 +25,7 @@ def apply_page(request: Request, db=Depends(get_db)):
 def apply_submit(
     request: Request,
     db=Depends(get_db),
+    recaptcha_token: Optional[str] = Form(None, alias="g-recaptcha-response"),
     username: str = Form(...),
     first_name: str = Form(...),
     middle_name: Optional[str] = Form(None),

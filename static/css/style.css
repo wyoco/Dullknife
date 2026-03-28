@@ -24,3 +24,77 @@
   .admin-btn { display: block; text-align: center; padding: 0.75rem; font-size: 1.1rem; }
   .admin-section { margin-bottom: 2rem; }
   .admin-section h2 { margin-bottom: 0.75rem; }
+  .image-gallery { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
+  .image-card { text-align: center; }
+  .image-card img { display: block; width: 200px; height: 200px; object-fit: cover; border: 2px solid #ccc; }
+  .active-badge { display: inline-block; background: #27ae60; color: white; padding: 0.2rem 0.5rem; font-size: 0.8rem; border-radius: 3px; }
+  .btn-small { padding: 0.25rem 0.5rem; font-size: 0.85rem; cursor: pointer; }
+  .btn-danger { background: #c0392b; color: white; border: none; border-radius: 3px; }
+  .member-thumb { width: 30px; height: 30px; object-fit: cover; flex-shrink: 0; border-radius: 4px; }
+  .nav-dropdown { position: relative; list-style: none; }
+  .nav-dropdown summary { color: white; cursor: pointer; list-style: none; padding: 0; }
+  .nav-dropdown summary::-webkit-details-marker { display: none; }
+  .nav-dropdown-menu { position: absolute; right: 0; top: 1.5rem; background: #2c3e50; list-style: none; min-width: 140px; box-shadow: 0 4px 10px rgba(0,0,0,0.4); z-index: 100; padding: 0.25rem 0; border-radius: 3px; }
+  .nav-dropdown-menu li a { display: block; padding: 0.5rem 1rem; color: white; text-decoration: none; white-space: nowrap; }
+  .nav-dropdown-menu li a:hover { background: #34495e; }
+  .contact-member-photo { width: 300px; height: 300px; object-fit: cover; display: block; margin-bottom: 1.5rem; border-radius: 6px; }
+  .form-group { margin-bottom: 1rem; max-width: 500px; }
+  .form-group label { display: block; margin-bottom: 0.25rem; font-weight: bold; }
+  .form-group input[type=text], .form-group input[type=email], .form-group input[type=password], .form-group input[type=file], .form-group textarea, .form-group select { width: 100%; padding: 0.4rem 0.5rem; border: 1px solid #ccc; border-radius: 3px; font-size: 1rem; box-sizing: border-box; }
+  .form-buttons { margin-top: 1.5rem; display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
+  button { padding: 0.4rem 1rem; background: #2c3e50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 1rem; }
+  button:hover { background: #34495e; }
+  .button { display: inline-block; padding: 0.4rem 1rem; background: #2c3e50; color: white; text-decoration: none; border-radius: 3px; font-size: 1rem; }
+  .button:hover { background: #34495e; color: white; }
+
+/* ── Member Directory card layout ─────────────────────────── */
+.member-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 10px 4px;
+  border-bottom: 1px solid #ddd;
+}
+.member-card:first-child {
+  border-top: 1px solid #ddd;
+}
+.member-thumb-placeholder {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+.member-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.member-info-top {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+.member-name {
+  font-weight: bold;
+  white-space: nowrap;
+  min-width: 140px;
+}
+.member-disciplines {
+  color: #555;
+  font-size: 0.9em;
+}
+.member-skills {
+  color: #666;
+  font-size: 0.9em;
+}
+.contact-link {
+  white-space: nowrap;
+  margin-left: auto;
+  font-size: 0.9em;
+}
+.search-box { margin-top: 4px; margin-bottom: 4px; }
+.search-box input[type=text] { padding: 0.4rem 0.5rem; border: 1px solid #ccc; border-radius: 3px; font-size: 1rem; box-sizing: border-box; }
+.search-buttons { padding: 4px 0; margin-top: 4px; }
+.disciplines-list { margin-top: 4px; }

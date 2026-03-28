@@ -9,8 +9,8 @@
         <nav>
             <div class="logo"><a href="/">Dullknife</a></div>
             <ul>
-                <li><a href="/directory">Member Directory</a></li>
-                <li>{% if request.cookies.get("member_id") %}<a href="/logout">Logout</a>{% else %}<a href="/login">Member Login</a>{% endif %}</li>
+                <li><a href=/directory>Member Directory</a></li>
+                <li>{% if request.cookies.get("member_id") %}<details class="nav-dropdown"><summary>My Account ▾</summary><ul class="nav-dropdown-menu"><li><a href="/member">My Page</a></li><li><a href="/logout">Logout</a></li></ul></details>{% else %}<a href="/login">Member Login</a>{% endif %}</li>
                 <li><a href="/apply">Apply for Membership</a></li>
                 <li><a href="/about">About Us</a></li>
             </ul>
@@ -40,10 +40,21 @@
         <div class="directory">
             {% for member in members %}
             <div class="member-card">
-                <h2>{{ member.last_name }}, {{ member.first_name }}</h2>
-                <p class="disciplines">{{ member.disciplines or "No disciplines listed" }}</p>
-                <p class="summary">{{ member.skills_summary or "" }}</p>
-                <a href="/contact/{{ member.id }}" class="contact-link">Contact</a>
+                {% if member.image %}
+                <img src="/static/images/{{ member.image }}" alt="{{ member.first_name }} {{ member.last_name }}" class="member-thumb">
+                {% else %}
+                <div class="member-thumb-placeholder"></div>
+                {% endif %}
+                <div class="member-info">
+                    <div class="member-info-top">
+                        <span class="member-name">{{ member.last_name }}, {{ member.first_name }}</span>
+                        <span class="member-disciplines">{{ member.disciplines or "" }}</span>
+                        <a href="/contact/{{ member.id }}" class="contact-link">Contact</a>
+                    </div>
+                    {% if member.skills_summary %}
+                    <div class="member-skills">{{ member.skills_summary }}</div>
+                    {% endif %}
+                </div>
             </div>
             {% endfor %}
         </div>

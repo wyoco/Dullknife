@@ -6,6 +6,7 @@ import bcrypt
 import time
 import secrets
 from database import get_db
+from utils.email import send_group_email, send_approval_email, send_rejection_email
 
 router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="templates")
@@ -92,9 +93,7 @@ def group_email_submit(request: Request, db=Depends(get_db), subject: str = Form
     with db.cursor() as cursor:
         cursor.execute("SELECT email, first_name FROM members WHERE member_type = 'current'")
         members = cursor.fetchall()
-    for m in members:
-        print(f"[GROUP EMAIL] To: {m['email']} | Subject: {subject}", flush=True)
-    # TODO: send email via SMTP when configured
+    send_group_email(members, subject, message)
     return templates.TemplateResponse("admin_group_email.html", {"request": request, "sent": True})
 
 @router.get("/manage-users")
@@ -178,16 +177,14 @@ def edit_user_submit(
         with db.cursor() as cursor:
             cursor.execute("SELECT email FROM members WHERE id = %s", (member_id,))
             row = cursor.fetchone()
-        print(f"[APPROVE] Member {member_id} approved. Temp password email → {row['email']}", flush=True)
-        # TODO: send approval email with temp password when SMTP configured
+        send_approval_email(row["email"], row["first_name"], username)
         final_type = "current"
         pw_hash = "temporary"
     elif action == "reject":
         with db.cursor() as cursor:
             cursor.execute("SELECT email FROM members WHERE id = %s", (member_id,))
             row = cursor.fetchone()
-        print(f"[REJECT] Member {member_id} rejected. Email → {row['email']}", flush=True)
-        # TODO: send rejection email when SMTP configured
+        send_rejection_email(row["email"], row["first_name"])
         final_type = "applicant"
         pw_hash = None
     else:

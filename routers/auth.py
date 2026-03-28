@@ -4,6 +4,8 @@ from fastapi.responses import RedirectResponse
 from typing import Optional, List
 import bcrypt
 from database import get_db
+from utils.email import send_password_reset
+from utils.recaptcha import verify_recaptcha
 import time
 
 router = APIRouter()
@@ -15,7 +17,8 @@ WARNING_AT = 3
 
 @router.get("/login")
 def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    show_recaptcha = not request.cookies.get("suppress_recaptcha")
+    return templates.TemplateResponse("login.html", {"request": request, "show_recaptcha": show_recaptcha})
 
 @router.post("/login")
 def login_submit(
@@ -24,7 +27,8 @@ def login_submit(
     db=Depends(get_db),
     username: str = Form(...),
     password: str = Form(...),
-    suppress_recaptcha: Optional[str] = Form(None)
+    suppress_recaptcha: Optional[str] = Form(None),
+    recaptcha_token: Optional[str] = Form(None, alias="g-recaptcha-response"),
 ):
     with db.cursor() as cursor:
         cursor.execute("""
@@ -32,6 +36,14 @@ def login_submit(
             FROM members WHERE username = %s
         """, (username,))
         member = cursor.fetchone()
+
+    if not request.cookies.get("suppress_recaptcha"):
+        if not verify_recaptcha(recaptcha_token or "", request.client.host):
+            show_recaptcha = True
+            return templates.TemplateResponse("login.html", {
+                "request": request, "show_recaptcha": show_recaptcha,
+                "error": "reCAPTCHA verification failed. Please try again."
+            })
 
     if not member:
         return RedirectResponse(url="/login-failed", status_code=303)
@@ -109,10 +121,20 @@ def member_page(request: Request, db=Depends(get_db)):
 
     disciplines = [{"id": d["id"], "name": d["name"], "checked": d["id"] in member_disc_ids} for d in all_disciplines]
 
+    with db.cursor() as cursor:
+        cursor.execute("SELECT id, filename, is_active FROM member_images WHERE member_id = %s ORDER BY uploaded_at DESC", (member_id,))
+        images = cursor.fetchall()
+
+    with db.cursor() as cursor:
+        cursor.execute("SELECT name FROM wyoming_cities ORDER BY name")
+        wyoming_cities = [r["name"] for r in cursor.fetchall()]
+
     return templates.TemplateResponse("member.html", {
         "request": request,
         "member": member,
-        "disciplines": disciplines
+        "disciplines": disciplines,
+        "images": images,
+        "wyoming_cities": wyoming_cities,
     })
 
 @router.post("/member")
@@ -210,8 +232,7 @@ def reset_password_submit(request: Request, db=Depends(get_db), email: str = For
             )
             db.commit()
         reset_url = f"https://www.dullknife.com/change-password?token={token}"
-        print(f"[PASSWORD RESET] {reset_url}", flush=True)
-        # TODO: email reset_url to {email} when SMTP is configured
+        send_password_reset(email, reset_url)
 
     return templates.TemplateResponse("reset_password.html", {"request": request, "sent": True})
 
@@ -266,6 +287,16 @@ def change_password_submit(
             "request": request, "error": None, "success": False, "token": token,
             "form_error": "Password is too weak. Please use at least 8 characters with a mix of uppercase, lowercase, numbers, or symbols."
         })
+
+    with db.cursor() as cursor:
+        cursor.execute("SELECT password_hash FROM members WHERE id = %s", (record["member_id"],))
+        current = cursor.fetchone()
+    if current and current["password_hash"] != "temporary":
+        if bcrypt.checkpw(password.encode(), current["password_hash"].encode()):
+            return templates.TemplateResponse("change_password.html", {
+                "request": request, "error": None, "success": False, "token": token,
+                "form_error": "New password must be different from your current password."
+            })
 
     hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     with db.cursor() as cursor:
@@ -322,6 +353,12 @@ def new_member_change_password_submit(
             "new_member": True
         })
 
+    if password == "temporary":
+        return templates.TemplateResponse("change_password.html", {
+            "request": request, "error": None, "success": False, "token": None,
+            "form_error": "You must choose a new password.", "new_member": True
+        })
+
     hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     with db.cursor() as cursor:
         cursor.execute("UPDATE members SET password_hash = %s WHERE id = %s", (hashed, member_id))
@@ -336,3 +373,75 @@ def new_member_cancel(request: Request):
     resp = RedirectResponse(url="/", status_code=303)
     resp.delete_cookie("member_id")
     return resp
+
+from fastapi import UploadFile, File
+import os
+import io
+from PIL import Image as PilImage
+
+IMAGES_DIR = "static/images"
+
+@router.post("/member/upload-image")
+def upload_image(request: Request, db=Depends(get_db), file: UploadFile = File(...)):
+    member_id = request.cookies.get("member_id")
+    if not member_id:
+        return RedirectResponse(url="/login", status_code=303)
+
+    contents = file.file.read()
+
+    try:
+        img = PilImage.open(io.BytesIO(contents))
+        if img.size != (400, 400):
+            return RedirectResponse(url="/member?img_error=size", status_code=303)
+    except Exception:
+        return RedirectResponse(url="/member?img_error=invalid", status_code=303)
+
+    member_dir = os.path.join(IMAGES_DIR, str(member_id))
+    os.makedirs(member_dir, exist_ok=True)
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".gif"):
+        ext = ".jpg"
+    filename = secrets.token_hex(16) + ext
+    filepath = os.path.join(member_dir, filename)
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    with db.cursor() as cursor:
+        cursor.execute("SELECT COUNT(*) as cnt FROM member_images WHERE member_id = %s", (member_id,))
+        count = cursor.fetchone()["cnt"]
+        is_active = 1 if count == 0 else 0
+        cursor.execute(
+            "INSERT INTO member_images (member_id, filename, is_active) VALUES (%s, %s, %s)",
+            (member_id, f"{member_id}/{filename}", is_active)
+        )
+        db.commit()
+
+    return RedirectResponse(url="/member", status_code=303)
+
+@router.post("/member/set-active-image/{image_id}")
+def set_active_image(image_id: int, request: Request, db=Depends(get_db)):
+    member_id = request.cookies.get("member_id")
+    if not member_id:
+        return RedirectResponse(url="/login", status_code=303)
+    with db.cursor() as cursor:
+        cursor.execute("UPDATE member_images SET is_active = 0 WHERE member_id = %s", (member_id,))
+        cursor.execute("UPDATE member_images SET is_active = 1 WHERE id = %s AND member_id = %s", (image_id, member_id))
+        db.commit()
+    return RedirectResponse(url="/member", status_code=303)
+
+@router.post("/member/delete-image/{image_id}")
+def delete_image(image_id: int, request: Request, db=Depends(get_db)):
+    member_id = request.cookies.get("member_id")
+    if not member_id:
+        return RedirectResponse(url="/login", status_code=303)
+    with db.cursor() as cursor:
+        cursor.execute("SELECT filename FROM member_images WHERE id = %s AND member_id = %s", (image_id, member_id))
+        row = cursor.fetchone()
+    if row:
+        filepath = os.path.join(IMAGES_DIR, row["filename"])
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        with db.cursor() as cursor:
+            cursor.execute("DELETE FROM member_images WHERE id = %s", (image_id,))
+            db.commit()
+    return RedirectResponse(url="/member", status_code=303)

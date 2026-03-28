@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dullknife - Contact Member</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <script>function onSubmit(token) { document.getElementById('contact-link-form').submit(); }</script>
 </head>
 <body>
     <header>
@@ -12,9 +14,9 @@
             <div class="logo"><a href="/">Dullknife</a></div>
             <ul>
                 <li><a href="/directory">Member Directory</a></li>
-                <li>{% if request.cookies.get("member_id") %}<a href="/logout">Logout</a>{% else %}<a href="/login">Member Login</a>{% endif %}</li>
                 <li><a href="/apply">Apply for Membership</a></li>
                 <li><a href="/about">About Us</a></li>
+                <li>{% if request.cookies.get("member_id") %}<details class="nav-dropdown"><summary>My Account ▾</summary><ul class="nav-dropdown-menu"><li><a href="/member">My Page</a></li><li><a href="/logout">Logout</a></li></ul></details>{% else %}<a href="/login">Member Login</a>{% endif %}</li>
             </ul>
         </nav>
     </header>
@@ -26,9 +28,13 @@
             <a href="/directory" class="button">Return to Directory</a>
         </div>
         {% else %}
+        {% if member_image %}
+        <img src="/static/images/{{ member_image }}" alt="{{ member_name }}" class="contact-member-photo">
+        {% endif %}
         <h1>Contact {{ member_name }}</h1>
         <p>Your contact information will not be shared publicly. Your message will be forwarded directly to this member.</p>
-        <form method="post" action="/contact/{{ member_id }}">
+
+        <form method="post" action="/contact/{{ member_id }}" id="contact-link-form">
             <div class="form-group">
                 <label>First Name *</label>
                 <input type="text" name="first_name" required autofocus>
@@ -54,11 +60,49 @@
                 <input type="text" name="phone_2">
             </div>
             <div class="form-group">
+                <label>City</label>
+                <select id="city-select" onchange="handleCityChange()">
+                    <option value="">-- Select a Wyoming city --</option>
+                    {% for city in wyoming_cities %}
+                    <option value="{{ city }}">{{ city }}</option>
+                    {% endfor %}
+                    <option value="Other">Other / Not in Wyoming</option>
+                </select>
+                <input type="text" id="city-input" name="city" placeholder="Enter your city" style="display:none; margin-top:0.4rem;">
+            </div>
+            <div class="form-group">
+                <label>State</label>
+                <input type="text" name="state" id="state-input" value="WY" onchange="handleStateChange()">
+            </div>
+            <div class="form-group">
+                <label>ZIP Code</label>
+                <select id="zip-select" style="display:none;">
+                    <option value="">-- Select ZIP --</option>
+                </select>
+                <input type="text" id="zip-input" name="zipcode" placeholder="ZIP Code">
+            </div>
+            <div class="form-group">
+                <label>Country</label>
+                <select id="country-select" onchange="handleCountryChange()">
+                    <option value="United States">United States</option>
+                    {% for country in countries %}
+                    {% if country != 'United States' %}
+                    <option value="{{ country }}">{{ country }}</option>
+                    {% endif %}
+                    {% endfor %}
+                    <option value="Other">Other</option>
+                </select>
+                <input type="text" id="country-input" name="country" value="United States" style="display:none; margin-top:0.4rem;">
+            </div>
+            <div class="form-group">
                 <label>Message *</label>
                 <textarea name="message" rows="6" required></textarea>
             </div>
             <div class="form-buttons">
-                <button type="submit">Send Message</button>
+                <button class="g-recaptcha"
+                        data-sitekey="6Lfd75osAAAAACKzI8-JUWRGaYV4L3ejVBZMIeyN"
+                        data-callback="onSubmit"
+                        data-action="submit">Send Message</button>
                 <a href="/directory" class="button">Cancel</a>
             </div>
         </form>
@@ -67,5 +111,158 @@
     <footer>
         <p>&copy; 2026 Dullknife</p>
     </footer>
+    <script>
+        // Switch city + ZIP to plain text mode (non-Wyoming / non-US visitor)
+        function forceOtherMode() {
+            var citySelect = document.getElementById('city-select');
+            var cityInput = document.getElementById('city-input');
+            var zipSelect = document.getElementById('zip-select');
+            var zipInput = document.getElementById('zip-input');
+
+            citySelect.style.display = 'none';
+            citySelect.value = 'Other';
+            cityInput.style.display = 'block';
+            cityInput.value = '';
+
+            zipSelect.style.display = 'none';
+            zipSelect.name = '';
+            zipInput.style.display = 'block';
+            zipInput.name = 'zipcode';
+            zipInput.value = '';
+        }
+
+        // Restore Wyoming city dropdown (US + WY visitor)
+        function restoreWyomingMode() {
+            var citySelect = document.getElementById('city-select');
+            var cityInput = document.getElementById('city-input');
+            var zipSelect = document.getElementById('zip-select');
+            var zipInput = document.getElementById('zip-input');
+            var stateInput = document.getElementById('state-input');
+
+            citySelect.style.display = 'block';
+            citySelect.value = '';
+            cityInput.style.display = 'none';
+            cityInput.value = '';
+
+            zipSelect.style.display = 'none';
+            zipSelect.name = '';
+            zipInput.style.display = 'block';
+            zipInput.name = 'zipcode';
+            zipInput.value = '';
+
+            stateInput.value = 'WY';
+        }
+
+        function isWyoming() {
+            var v = document.getElementById('state-input').value.trim().toUpperCase();
+            return v === '' || v === 'WY' || v === 'WYOMING';
+        }
+
+        function isUnitedStates() {
+            var sel = document.getElementById('country-select');
+            return sel.value === 'United States';
+        }
+
+        function handleCityChange() {
+            var citySelect = document.getElementById('city-select');
+            var cityInput = document.getElementById('city-input');
+            var zipSelect = document.getElementById('zip-select');
+            var zipInput = document.getElementById('zip-input');
+            var stateInput = document.getElementById('state-input');
+
+            if (citySelect.value === 'Other') {
+                cityInput.style.display = 'block';
+                cityInput.value = '';
+                cityInput.focus();
+                zipSelect.style.display = 'none';
+                zipSelect.name = '';
+                zipInput.style.display = 'block';
+                zipInput.name = 'zipcode';
+                zipInput.value = '';
+                stateInput.value = '';
+            } else if (citySelect.value === '') {
+                cityInput.style.display = 'none';
+                cityInput.value = '';
+                zipSelect.style.display = 'none';
+                zipSelect.name = '';
+                zipInput.style.display = 'block';
+                zipInput.name = 'zipcode';
+                zipInput.value = '';
+                stateInput.value = 'WY';
+            } else {
+                // Wyoming city selected
+                cityInput.style.display = 'none';
+                cityInput.value = citySelect.value;
+                stateInput.value = 'WY';
+                zipInput.style.display = 'none';
+                zipInput.name = '';
+                zipInput.value = '';
+                zipSelect.style.display = 'block';
+                zipSelect.name = 'zipcode';
+                fetch('/api/wyoming-zipcodes/' + encodeURIComponent(citySelect.value))
+                    .then(function(r) { return r.json(); })
+                    .then(function(zips) {
+                        zipSelect.innerHTML = '';
+                        if (zips.length === 1) {
+                            var opt = document.createElement('option');
+                            opt.value = zips[0];
+                            opt.textContent = zips[0];
+                            zipSelect.appendChild(opt);
+                        } else {
+                            var blank = document.createElement('option');
+                            blank.value = '';
+                            blank.textContent = '-- Select ZIP --';
+                            zipSelect.appendChild(blank);
+                            zips.forEach(function(z) {
+                                var opt = document.createElement('option');
+                                opt.value = z;
+                                opt.textContent = z;
+                                zipSelect.appendChild(opt);
+                            });
+                        }
+                    });
+            }
+        }
+
+        function handleStateChange() {
+            // If state is changed away from WY while Wyoming dropdown is visible, force text mode
+            if (!isWyoming() && isUnitedStates()) {
+                forceOtherMode();
+                // Clear state so user can type their actual state
+                var stateInput = document.getElementById('state-input');
+                stateInput.value = stateInput.value; // keep their typed value
+            }
+        }
+
+        function handleCountryChange() {
+            var countrySelect = document.getElementById('country-select');
+            var countryInput = document.getElementById('country-input');
+
+            if (countrySelect.value === 'Other') {
+                countryInput.style.display = 'block';
+                countryInput.value = '';
+                countryInput.focus();
+                forceOtherMode();
+                document.getElementById('state-input').value = '';
+            } else if (countrySelect.value !== 'United States') {
+                countryInput.style.display = 'none';
+                countryInput.value = countrySelect.value;
+                forceOtherMode();
+                document.getElementById('state-input').value = '';
+            } else {
+                // Back to United States
+                countryInput.style.display = 'none';
+                countryInput.value = 'United States';
+                if (isWyoming()) {
+                    restoreWyomingMode();
+                }
+                // If state is non-WY, stay in text mode (city/zip already free-text)
+            }
+        }
+
+        // Initialize
+        document.getElementById('country-input').value = 'United States';
+        document.getElementById('city-input').style.display = 'none';
+    </script>
 </body>
 </html>

@@ -20,10 +20,12 @@ def member_directory(
         if discipline_id or search:
             query = """
                 SELECT DISTINCT m.id, m.first_name, m.last_name, m.skills_summary,
-                       GROUP_CONCAT(d.name ORDER BY d.name SEPARATOR ', ') AS disciplines
+                       GROUP_CONCAT(d.name ORDER BY d.name SEPARATOR ', ') AS disciplines,
+                       mi.filename AS image
                 FROM members m
                 LEFT JOIN member_disciplines md ON m.id = md.member_id
                 LEFT JOIN disciplines d ON md.discipline_id = d.id
+                LEFT JOIN member_images mi ON m.id = mi.member_id AND mi.is_active = 1
                 WHERE m.member_type = 'current'
             """
             params = []
@@ -39,10 +41,12 @@ def member_directory(
         else:
             cursor.execute("""
                 SELECT m.id, m.first_name, m.last_name, m.skills_summary,
-                       GROUP_CONCAT(d.name ORDER BY d.name SEPARATOR ', ') AS disciplines
+                       GROUP_CONCAT(d.name ORDER BY d.name SEPARATOR ', ') AS disciplines,
+                       mi.filename AS image
                 FROM members m
                 LEFT JOIN member_disciplines md ON m.id = md.member_id
                 LEFT JOIN disciplines d ON md.discipline_id = d.id
+                LEFT JOIN member_images mi ON m.id = mi.member_id AND mi.is_active = 1
                 WHERE m.member_type = 'current'
                 GROUP BY m.id
                 ORDER BY m.last_name, m.first_name

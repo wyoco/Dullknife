@@ -1,18 +1,20 @@
-<!DOCTYPE html>                                                                                                                    
+<!DOCTYPE html>
 <html lang="en">
-<head>                                                                                                                             
-    <meta charset="UTF-8">                                
+<head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dullknife - Apply for Membership</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <script>function onSubmit(token) { document.getElementById('apply-form').submit(); }</script>
 </head>
 <body>
     <header>
         <nav>
             <div class="logo"><a href="/">Dullknife</a></div>
             <ul>
-                <li><a href="/directory">Member Directory</a></li>
-                <li>{% if request.cookies.get("member_id") %}<a href="/logout">Logout</a>{% else %}<a href="/login">Member Login</a>{% endif %}</li>
+                <li><a href=/directory>Member Directory</a></li>
+                <li>{% if request.cookies.get("member_id") %}<details class="nav-dropdown"><summary>My Account ▾</summary><ul class="nav-dropdown-menu"><li><a href="/member">My Page</a></li><li><a href="/logout">Logout</a></li></ul></details>{% else %}<a href="/login">Member Login</a>{% endif %}</li>
                 <li><a href="/apply">Apply for Membership</a></li>
                 <li><a href="/about">About Us</a></li>
             </ul>
@@ -23,7 +25,7 @@
         {% if error %}
         <p class="error">{{ error }}</p>
         {% endif %}
-        <form method="post" action="/apply">
+        <form method="post" action="/apply" id="apply-form">
             <div class="form-group">
                 <label>Username *</label>
                 <input type="text" name="username" required>
@@ -84,7 +86,10 @@
                 </div>
             </div>
             <div class="form-buttons">
-                <button type="submit">Submit</button>
+                <button class="g-recaptcha"
+                        data-sitekey="6Lfd75osAAAAACKzI8-JUWRGaYV4L3ejVBZMIeyN"
+                        data-callback="onSubmit"
+                        data-action="submit">Submit</button>
                 <a href="/" class="button">Cancel</a>
             </div>
         </form>
