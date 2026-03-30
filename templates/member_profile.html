@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dullknife - {{ member.first_name }} {{ member.last_name }}</title>
+        <meta name="description" content="{{ member.first_name }} {{ member.last_name }} — software developer on Dullknife, the Wyoming developer alliance.{% if member.city %} Based in {{ member.city }}.{% endif %}">
+    <meta property="og:site_name" content="Dullknife">
+    <meta property="og:type" content="profile">
+    <meta property="og:title" content="{{ member.first_name }} {{ member.last_name }} — Dullknife">
+    <meta property="og:description" content="{{ member.first_name }} {{ member.last_name }} — software developer on Dullknife, the Wyoming developer alliance.">
+    <meta property="og:url" content="https://www.dullknife.com/profile/{{ member.id }}">
+    <meta property="og:image" content="{% if member.image_filename %}https://www.dullknife.com/static/images/{{ member.image_filename }}{% else %}https://www.dullknife.com/static/images/jackRound.jpg{% endif %}">
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="icon" href="/static/favicon.ico">
 </head>

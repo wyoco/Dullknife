@@ -1,11 +1,48 @@
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, Response
 from typing import Optional
 from database import get_db
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+
+BASE_URL = "https://www.dullknife.com"
+
+STATIC_URLS = [
+    {"loc": f"{BASE_URL}/",          "changefreq": "daily",   "priority": "1.0"},
+    {"loc": f"{BASE_URL}/directory", "changefreq": "daily",   "priority": "0.9"},
+    {"loc": f"{BASE_URL}/apply",     "changefreq": "monthly", "priority": "0.8"},
+    {"loc": f"{BASE_URL}/about",     "changefreq": "monthly", "priority": "0.7"},
+    {"loc": f"{BASE_URL}/contact",   "changefreq": "monthly", "priority": "0.6"},
+]
+
+@router.get("/sitemap.xml")
+def sitemap(db=Depends(get_db)):
+    urls = list(STATIC_URLS)
+    with db.cursor() as cursor:
+        cursor.execute("SELECT id FROM members WHERE member_type = 'current' ORDER BY id")
+        for row in cursor.fetchall():
+            urls.append({
+                "loc": f"{BASE_URL}/profile/{row['id']}",
+                "changefreq": "weekly",
+                "priority": "0.7",
+            })
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>',
+             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for u in urls:
+        lines.append("  <url>")
+        lines.append(f"    <loc>{u['loc']}</loc>")
+        lines.append(f"    <changefreq>{u['changefreq']}</changefreq>")
+        lines.append(f"    <priority>{u['priority']}</priority>")
+        lines.append("  </url>")
+    lines.append("</urlset>")
+    return Response(content="\n".join(lines), media_type="application/xml")
+
+@router.get("/robots.txt")
+def robots_txt():
+    content = f"User-agent: *\nDisallow: /admin/\nDisallow: /member\nSitemap: {BASE_URL}/sitemap.xml\n"
+    return Response(content=content, media_type="text/plain")
 
 @router.get("/api/wyoming-zipcodes/{city}")
 def wyoming_zipcodes_api(city: str, db=Depends(get_db)):
