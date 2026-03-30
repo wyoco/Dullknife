@@ -9,6 +9,8 @@ import io
 import os
 from PIL import Image as PilImage
 from database import get_db
+from utils.email import send_approval_email, send_rejection_email, send_group_email, ADMIN_EMAIL
+from utils.recaptcha import verify_recaptcha
 
 router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="templates")
@@ -30,7 +32,13 @@ def admin_login_submit(
     db=Depends(get_db),
     username: str = Form(...),
     password: str = Form(...),
+    recaptcha_token: str = Form(default="", alias="g-recaptcha-response"),
 ):
+    if not verify_recaptcha(recaptcha_token, request.client.host):
+        return templates.TemplateResponse("admin_login.html", {
+            "request": request, "error": "reCAPTCHA verification failed. Please try again.", "warning": None
+        })
+
     with db.cursor() as cursor:
         cursor.execute("SELECT id, password_hash, failed_attempts, lockout_until FROM admins WHERE username = %s", (username,))
         admin = cursor.fetchone()
@@ -93,11 +101,10 @@ def group_email_submit(request: Request, db=Depends(get_db), subject: str = Form
     if not require_admin(request):
         return RedirectResponse(url="/admin/login", status_code=303)
     with db.cursor() as cursor:
-        cursor.execute("SELECT email, first_name FROM members WHERE member_type = 'current'")
+        cursor.execute("SELECT email, first_name FROM members WHERE member_type = 'current' AND email NOT LIKE '%@example.com'")
         members = cursor.fetchall()
     for m in members:
-        print(f"[GROUP EMAIL] To: {m['email']} | Subject: {subject}", flush=True)
-    # TODO: send email via SMTP when configured
+        send_group_email(m["email"], m["first_name"], subject, message)
     return templates.TemplateResponse("admin_group_email.html", {"request": request, "sent": True})
 
 @router.get("/manage-users")
@@ -235,6 +242,19 @@ def edit_user_submit(
         "request": request, "member": member, "disciplines": disciplines_out, "message": msg, "error": None
     })
 
+
+@router.post("/delete-user/{member_id}")
+def delete_user(member_id: int, request: Request, db=Depends(get_db)):
+    if not require_admin(request):
+        return RedirectResponse(url="/admin/login", status_code=303)
+    with db.cursor() as cursor:
+        cursor.execute("DELETE FROM member_disciplines WHERE member_id = %s", (member_id,))
+        cursor.execute("DELETE FROM member_images WHERE member_id = %s", (member_id,))
+        cursor.execute("DELETE FROM password_reset_tokens WHERE member_id = %s", (member_id,))
+        cursor.execute("DELETE FROM contact_submissions WHERE member_id = %s", (member_id,))
+        cursor.execute("DELETE FROM members WHERE id = %s", (member_id,))
+        db.commit()
+    return RedirectResponse(url="/admin/manage-users", status_code=303)
 
 # ── Advertising routes ──────────────────────────────────────────────────────
 

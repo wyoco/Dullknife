@@ -63,6 +63,9 @@ def apply_submit(
         cursor.execute("SELECT id FROM members WHERE username = %s", (username,))
         if cursor.fetchone():
             return render_error(f"Username '{username}' is already taken. Please choose another.")
+        cursor.execute("SELECT id FROM members WHERE email = %s", (email,))
+        if cursor.fetchone():
+            return render_error(f"An account with email '{email}' already exists.")
         cursor.execute("""
             INSERT INTO members
              (username, email, password_hash, member_type, first_name, middle_name,
@@ -88,7 +91,7 @@ Email:    {email}
 City:     {city}, {state} {zipcode}
 Phone:    {phone_1}
 
-Review and approve at https://www.dullknife.com/admin/users
+Review and approve at https://www.dullknife.com/admin/manage-users
 """
     send_email(ADMIN_EMAIL, subject, body)
 

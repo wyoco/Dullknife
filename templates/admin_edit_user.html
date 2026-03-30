@@ -115,6 +115,25 @@
                 <a href="/admin/manage-users" class="button">Cancel</a>
             </div>
         </form>
+
+        <form method="post" action="/admin/delete-user/{{ member.id }}" id="delete-form" style="margin-top:2rem;">
+            <button type="button" onclick="confirmDelete()" style="background:#c0392b;color:#fff;border:none;padding:0.5rem 1.2rem;border-radius:4px;cursor:pointer;">Delete User</button>
+        </form>
+
+        <div id="delete-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+            <div style="background:#fff;padding:2rem;border-radius:6px;max-width:400px;width:90%;text-align:center;">
+                <p style="margin-bottom:1.5rem;font-size:1.1rem;">Are you sure you want to delete <strong>{{ member.username }}</strong>? This cannot be undone.</p>
+                <div style="display:flex;gap:1rem;justify-content:center;">
+                    <button onclick="document.getElementById('delete-form').submit()" style="background:#c0392b;color:#fff;border:none;padding:0.5rem 1.5rem;border-radius:4px;cursor:pointer;font-size:1rem;">Yes, Delete</button>
+                    <button onclick="document.getElementById('delete-modal').style.display='none'" style="background:#888;color:#fff;border:none;padding:0.5rem 1.5rem;border-radius:4px;cursor:pointer;font-size:1rem;">Cancel</button>
+                </div>
+            </div>
+        </div>
+        <script>
+            function confirmDelete() {
+                document.getElementById('delete-modal').style.display = 'flex';
+            }
+        </script>
     </main>
     <footer>
         <p>&copy; 2026 Dullknife</p>

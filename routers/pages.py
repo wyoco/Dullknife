@@ -44,6 +44,24 @@ def robots_txt():
     content = f"User-agent: *\nDisallow: /admin/\nDisallow: /member\nSitemap: {BASE_URL}/sitemap.xml\n"
     return Response(content=content, media_type="text/plain")
 
+@router.get("/api/check-username")
+def check_username(username: str = "", db=Depends(get_db)):
+    if not username:
+        return JSONResponse(content={"available": True})
+    with db.cursor() as cursor:
+        cursor.execute("SELECT id FROM members WHERE username = %s", (username,))
+        taken = cursor.fetchone() is not None
+    return JSONResponse(content={"available": not taken})
+
+@router.get("/api/check-email")
+def check_email(email: str = "", db=Depends(get_db)):
+    if not email:
+        return JSONResponse(content={"available": True})
+    with db.cursor() as cursor:
+        cursor.execute("SELECT id FROM members WHERE email = %s", (email,))
+        taken = cursor.fetchone() is not None
+    return JSONResponse(content={"available": not taken})
+
 @router.get("/api/wyoming-zipcodes/{city}")
 def wyoming_zipcodes_api(city: str, db=Depends(get_db)):
     with db.cursor() as cursor:

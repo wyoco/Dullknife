@@ -47,7 +47,8 @@
         <form method="post" action="/apply" id="apply-form">
             <div class="form-group">
                 <label>Username *</label>
-                <input type="text" name="username" required autofocus>
+                <input type="text" name="username" id="username-input" required autofocus>
+                <span id="username-status" style="font-size:0.9rem;margin-top:4px;display:block;"></span>
             </div>
             <div class="form-group">
                 <label>First Name *</label>
@@ -63,7 +64,8 @@
             </div>
             <div class="form-group">
                 <label>Email *</label>
-                <input type="email" name="email" required>
+                <input type="email" name="email" id="email-input" required>
+                <span id="email-status" style="font-size:0.9rem;margin-top:4px;display:block;"></span>
             </div>
             <div class="form-group">
                 <label>Address *</label>
@@ -136,6 +138,54 @@
         <p>&copy; 2026 Dullknife</p>
     </footer>
     <script>
+        document.getElementById('username-input').addEventListener('blur', function() {
+            var val = this.value.trim();
+            var status = document.getElementById('username-status');
+            if (!val) { status.textContent = ''; return; }
+            fetch('/api/check-username?username=' + encodeURIComponent(val))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.available) {
+                        status.textContent = '\u2713 Username is available.';
+                        status.style.color = 'green';
+                    } else {
+                        status.textContent = '\u2717 Username is already taken — please choose another.';
+                        status.style.color = '#c0392b';
+                    }
+                });
+        });
+
+        document.getElementById('email-input').addEventListener('blur', function() {
+            var val = this.value.trim();
+            var status = document.getElementById('email-status');
+            if (!val) { status.textContent = ''; return; }
+            fetch('/api/check-email?email=' + encodeURIComponent(val))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.available) {
+                        status.textContent = '\u2713 Email is available.';
+                        status.style.color = 'green';
+                    } else {
+                        status.textContent = '\u2717 An account with this email already exists.';
+                        status.style.color = '#c0392b';
+                    }
+                });
+        });
+
+        document.getElementById('apply-form').addEventListener('submit', function(e) {
+            var uStatus = document.getElementById('username-status');
+            var eStatus = document.getElementById('email-status');
+            if (uStatus.style.color === 'rgb(192, 57, 43)') {
+                e.preventDefault();
+                document.getElementById('username-input').focus();
+                return;
+            }
+            if (eStatus.style.color === 'rgb(192, 57, 43)') {
+                e.preventDefault();
+                document.getElementById('email-input').focus();
+            }
+        });
+
         function handleStateChange() {
             var state = document.getElementById('state-select').value;
             if (state === 'WY') {

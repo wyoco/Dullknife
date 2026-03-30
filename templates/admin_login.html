@@ -7,6 +7,8 @@
         <meta name="robots" content="noindex, nofollow">
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="icon" href="/static/favicon.ico">
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <script>function onSubmit(token) { document.getElementById('admin-login-form').submit(); }</script>
 </head>
 <body>
     <header>
@@ -25,7 +27,7 @@
         {% if warning %}
         <p class="warning">{{ warning }}</p>
         {% endif %}
-        <form method="post" action="/admin/login">
+        <form method="post" action="/admin/login" id="admin-login-form">
             <div class="form-group">
                 <label>Username *</label>
                 <input type="text" name="username" required autofocus>
@@ -35,7 +37,7 @@
                 <input type="password" name="password" required>
             </div>
             <div class="form-buttons">
-                <button type="submit">Login</button>
+                <button class="g-recaptcha" data-sitekey="6Lfd75osAAAAACKzI8-JUWRGaYV4L3ejVBZMIeyN" data-callback="onSubmit">Login</button>
                 <a href="/" class="button">Cancel</a>
             </div>
         </form>
