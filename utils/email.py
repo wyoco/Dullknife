@@ -28,7 +28,7 @@ def send_email(to, subject, body, from_addr=FROM_ADDRESS):
 def send_password_reset(to_email, reset_url):
     subject = "Dullknife — Password Reset Request"
     body = f"""\
-You requested a password reset for your Dullknife Developer Alliance account.
+You requested a password reset for your Dullknife account.
 
 Click the link below to set a new password. This link expires in 20 minutes.
 
@@ -91,7 +91,7 @@ def send_approval_email(to_email, first_name, username):
     body = f"""\
 Hi {first_name},
 
-Great news! Your application to join the Dullknife Developer Alliance has been approved.
+Great news! Your application to join the Dullknife Wyoming Technology Community has been approved.
 
 You can log in now at {SITE_URL}/login using:
 
@@ -112,7 +112,7 @@ def send_rejection_email(to_email, first_name):
     body = f"""\
 Hi {first_name},
 
-Thank you for your interest in the Dullknife Developer Alliance.
+Thank you for your interest in the Dullknife Wyoming Technology Community.
 
 After careful review, we are unable to approve your membership application at this time.
 
@@ -125,11 +125,6 @@ If you have questions or would like more information, please reach out to us at:
     return send_email(to_email, subject, body)
 
 
-def send_group_email(members, subject, message):
-    """Send `message` individually to each member dict with keys email/first_name."""
-    sent = 0
-    for m in members:
-        body = f"Hi {m['first_name']},\n\n{message}\n\n— The Dullknife Team\n{SITE_URL}"
-        if send_email(m["email"], subject, body):
-            sent += 1
-    return sent
+def send_group_email(to_email, first_name, subject, message):
+    body = f"Hi {first_name},\n\n{message}\n\n— The Dullknife Team\n{SITE_URL}"
+    return send_email(to_email, subject, body)

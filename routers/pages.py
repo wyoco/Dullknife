@@ -69,6 +69,30 @@ def wyoming_zipcodes_api(city: str, db=Depends(get_db)):
         zips = [row["zipcode"] for row in cursor.fetchall()]
     return JSONResponse(content=zips)
 
+@router.get("/profile/{member_id}")
+def member_profile(member_id: int, request: Request, db=Depends(get_db)):
+    with db.cursor() as cursor:
+        cursor.execute("""
+            SELECT m.id, m.first_name, m.last_name, m.city, m.state, m.skills_summary,
+                   mi.filename AS image_filename
+            FROM members m
+            LEFT JOIN member_images mi ON mi.member_id = m.id AND mi.is_active = 1
+            WHERE m.id = %s AND m.member_type = 'current'
+        """, (member_id,))
+        member = cursor.fetchone()
+    if not member:
+        return RedirectResponse(url="/directory", status_code=303)
+    with db.cursor() as cursor:
+        cursor.execute("""
+            SELECT d.name FROM disciplines d
+            JOIN member_disciplines md ON md.discipline_id = d.id
+            WHERE md.member_id = %s ORDER BY d.name
+        """, (member_id,))
+        disciplines = ", ".join(row["name"] for row in cursor.fetchall())
+    member = dict(member)
+    member["disciplines"] = disciplines
+    return templates.TemplateResponse("member_profile.html", {"request": request, "member": member})
+
 @router.get("/about")
 def about_page(request: Request):
     return templates.TemplateResponse("about.html", {"request": request})
