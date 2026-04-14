@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dullknife - {{ member.first_name }} {{ member.last_name }}</title>
+        <meta name="description" content="{{ member.first_name }} {{ member.last_name }} — software developer on Dullknife, the Wyoming developer alliance.{% if member.city %} Based in {{ member.city }}.{% endif %}">
+    <meta property="og:site_name" content="Dullknife">
+    <meta property="og:type" content="profile">
+    <meta property="og:title" content="{{ member.first_name }} {{ member.last_name }} — Dullknife">
+    <meta property="og:description" content="{{ member.first_name }} {{ member.last_name }} — software developer on Dullknife, the Wyoming developer alliance.">
+    <meta property="og:url" content="https://www.dullknife.com/profile/{{ member.id }}">
+    <meta property="og:image" content="{% if member.image_filename %}https://www.dullknife.com/static/images/{{ member.image_filename }}{% else %}https://www.dullknife.com/static/images/jackRound.jpg{% endif %}">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="/static/favicon.ico">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo"><a href="/"><img src="/static/images/jackRound.jpg" alt="Dullknife" class="nav-logo"></a></div>
+            <ul>
+                <li><a href="/directory">Member Directory</a></li>
+                <li>
+                    {% if request.cookies.get("member_id") %}
+                    <details class="nav-dropdown">
+                        <summary>My Account ▾</summary>
+                        <ul>
+                            <li><a href="/member">My Page</a></li>
+                            <li><a href="/logout">Logout</a></li>
+                        </ul>
+                    </details>
+                    {% else %}
+                    <a href="/login">Member Login</a>
+                    {% endif %}
+                </li>
+                <li><a href="/apply">Apply for Membership</a></li>
+                <li><a href="/about">About Us</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <div class="profile-page">
+            {% if member.image_filename %}
+            <img src="/static/images/{{ member.image_filename }}" alt="{{ member.first_name }} {{ member.last_name }}" class="profile-photo">
+            {% endif %}
+            <h1>{{ member.first_name }} {{ member.last_name }}</h1>
+            {% if member.city or member.state %}
+            <p class="profile-location">{{ member.city }}{% if member.city and member.state %}, {% endif %}{{ member.state }}</p>
+            {% endif %}
+            {% if member.disciplines %}
+            <p class="member-disciplines">{{ member.disciplines }}</p>
+            {% endif %}
+            {% if member.skills_summary %}
+            <div class="member-skills">{{ member.skills_summary }}</div>
+            {% endif %}
+            <div style="margin-top: 1.5rem;">
+                <a href="/contact/{{ member.id }}" class="button">Contact {{ member.first_name }}</a>
+                <a href="/directory" class="button" style="margin-left: 0.5rem;">Back to Directory</a>
+            </div>
+        </div>
+    </main>
+    <footer>
+        <p>&copy; 2026 Dullknife</p>
+    </footer>
+</body>
+</html>

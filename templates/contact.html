@@ -4,14 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dullknife - Contact Us</title>
+        <meta name="description" content="Contact the Dullknife team with questions about membership, the Wyoming developer alliance, or collaboration opportunities.">
+    <meta property="og:site_name" content="Dullknife">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Contact Us — Dullknife">
+    <meta property="og:description" content="Contact the Dullknife team with questions about membership, the Wyoming developer alliance, or collaboration opportunities.">
+    <meta property="og:url" content="https://www.dullknife.com/contact">
+    <meta property="og:image" content="https://www.dullknife.com/static/images/jackRound.jpg">
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="/static/favicon.ico">
     <script src="https://www.google.com/recaptcha/api.js" async defer></script>
     <script>function onSubmit(token) { document.getElementById('contact-form').submit(); }</script>
 </head>
 <body>
     <header>
         <nav>
-            <div class="logo"><a href="/">Dullknife</a></div>
+            <div class="logo"><a href="/"><img src="/static/images/jackRound.jpg" alt="Dullknife" class="nav-logo"></a></div>
             <ul>
                 <li><a href=/directory>Member Directory</a></li>
                 <li>{% if request.cookies.get("member_id") %}<details class="nav-dropdown"><summary>My Account ▾</summary><ul class="nav-dropdown-menu"><li><a href="/member">My Page</a></li><li><a href="/logout">Logout</a></li></ul></details>{% else %}<a href="/login">Member Login</a>{% endif %}</li>

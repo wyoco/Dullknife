@@ -4,3 +4,5 @@ __pycache__/
 *.backup
 .env
 static/images/
+.member_session_key
+.admin_session_key

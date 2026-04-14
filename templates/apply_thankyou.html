@@ -4,12 +4,14 @@
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Dullknife - Application Submitted</title>
-      <link rel="stylesheet" href="/static/css/style.css">
+          <meta name="description" content="Thank you for applying to Dullknife. Your application is under review.">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="/static/favicon.ico">
   </head>
   <body>
       <header>
           <nav>
-              <div class="logo"><a href="/">Dullknife</a></div>
+              <div class="logo"><a href="/"><img src="/static/images/jackRound.jpg" alt="Dullknife" class="nav-logo"></a></div>
               <ul>
                 <li><a href=/directory>Member Directory</a></li>
                 <li>{% if request.cookies.get("member_id") %}<details class="nav-dropdown"><summary>My Account ▾</summary><ul class="nav-dropdown-menu"><li><a href="/member">My Page</a></li><li><a href="/logout">Logout</a></li></ul></details>{% else %}<a href="/login">Member Login</a>{% endif %}</li>
@@ -19,8 +21,8 @@
           </nav>
       </header>
       <main>
-          <h1>Application Submitted</h1>
-          <p>Thank you for applying to Dullknife. Please look for an email from dullknife.com with further instructions.</p>
+          <h1 style="margin-bottom:1.5rem;">Application Submitted</h1>
+          <p style="margin-bottom:1.5rem;">Thank you for applying to Dullknife. Please look for an email from dullknife.com with further instructions.</p>
           <a href="/" class="button">Return to Home</a>
       </main>
       <footer>

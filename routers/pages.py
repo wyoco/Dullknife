@@ -1,13 +1,99 @@
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse, JSONResponse
-from utils.recaptcha import verify_recaptcha
-from utils.email import send_contact_us_notification, send_contact_member_message
+from fastapi.responses import RedirectResponse, JSONResponse, Response
 from typing import Optional
 from database import get_db
+from utils.recaptcha import verify_recaptcha
+from utils.security import get_client_ip
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+
+BASE_URL = "https://www.dullknife.com"
+
+STATIC_URLS = [
+    {"loc": f"{BASE_URL}/",          "changefreq": "daily",   "priority": "1.0"},
+    {"loc": f"{BASE_URL}/directory", "changefreq": "daily",   "priority": "0.9"},
+    {"loc": f"{BASE_URL}/apply",     "changefreq": "monthly", "priority": "0.8"},
+    {"loc": f"{BASE_URL}/about",     "changefreq": "monthly", "priority": "0.7"},
+    {"loc": f"{BASE_URL}/contact",   "changefreq": "monthly", "priority": "0.6"},
+]
+
+@router.get("/sitemap.xml")
+def sitemap(db=Depends(get_db)):
+    urls = list(STATIC_URLS)
+    with db.cursor() as cursor:
+        cursor.execute("SELECT id FROM members WHERE member_type = 'current' ORDER BY id")
+        for row in cursor.fetchall():
+            urls.append({
+                "loc": f"{BASE_URL}/profile/{row['id']}",
+                "changefreq": "weekly",
+                "priority": "0.7",
+            })
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>',
+             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for u in urls:
+        lines.append("  <url>")
+        lines.append(f"    <loc>{u['loc']}</loc>")
+        lines.append(f"    <changefreq>{u['changefreq']}</changefreq>")
+        lines.append(f"    <priority>{u['priority']}</priority>")
+        lines.append("  </url>")
+    lines.append("</urlset>")
+    return Response(content="\n".join(lines), media_type="application/xml")
+
+@router.get("/robots.txt")
+def robots_txt():
+    content = f"User-agent: *\nDisallow: /admin/\nDisallow: /member\nSitemap: {BASE_URL}/sitemap.xml\n"
+    return Response(content=content, media_type="text/plain")
+
+@router.get("/api/check-username")
+def check_username(username: str = "", db=Depends(get_db)):
+    if not username:
+        return JSONResponse(content={"available": True})
+    with db.cursor() as cursor:
+        cursor.execute("SELECT id FROM members WHERE username = %s", (username,))
+        taken = cursor.fetchone() is not None
+    return JSONResponse(content={"available": not taken})
+
+@router.get("/api/check-email")
+def check_email(email: str = "", db=Depends(get_db)):
+    if not email:
+        return JSONResponse(content={"available": True})
+    with db.cursor() as cursor:
+        cursor.execute("SELECT id FROM members WHERE email = %s", (email,))
+        taken = cursor.fetchone() is not None
+    return JSONResponse(content={"available": not taken})
+
+@router.get("/api/wyoming-zipcodes/{city}")
+def wyoming_zipcodes_api(city: str, db=Depends(get_db)):
+    with db.cursor() as cursor:
+        cursor.execute("SELECT zipcode FROM wyoming_zipcodes WHERE city_name = %s ORDER BY zipcode", (city,))
+        zips = [row["zipcode"] for row in cursor.fetchall()]
+    return JSONResponse(content=zips)
+
+@router.get("/profile/{member_id}")
+def member_profile(member_id: int, request: Request, db=Depends(get_db)):
+    with db.cursor() as cursor:
+        cursor.execute("""
+            SELECT m.id, m.first_name, m.last_name, m.city, m.state, m.skills_summary,
+                   mi.filename AS image_filename
+            FROM members m
+            LEFT JOIN member_images mi ON mi.member_id = m.id AND mi.is_active = 1
+            WHERE m.id = %s AND m.member_type = 'current'
+        """, (member_id,))
+        member = cursor.fetchone()
+    if not member:
+        return RedirectResponse(url="/directory", status_code=303)
+    with db.cursor() as cursor:
+        cursor.execute("""
+            SELECT d.name FROM disciplines d
+            JOIN member_disciplines md ON md.discipline_id = d.id
+            WHERE md.member_id = %s ORDER BY d.name
+        """, (member_id,))
+        disciplines = ", ".join(row["name"] for row in cursor.fetchall())
+    member = dict(member)
+    member["disciplines"] = disciplines
+    return templates.TemplateResponse("member_profile.html", {"request": request, "member": member})
 
 @router.get("/about")
 def about_page(request: Request):
@@ -25,14 +111,15 @@ def contact_submit(
     email: str = Form(...),
     phone: Optional[str] = Form(None),
     message: str = Form(...),
-    recaptcha_token: Optional[str] = Form(None, alias="g-recaptcha-response"),
+    recaptcha_token: str = Form(default="", alias="g-recaptcha-response"),
 ):
-    if not verify_recaptcha(recaptcha_token or "", request.client.host):
+    if not verify_recaptcha(recaptcha_token, get_client_ip(request)):
         return templates.TemplateResponse("contact.html", {
             "request": request, "sent": False,
             "error": "reCAPTCHA verification failed. Please try again.",
             "form": {"name": name, "email": email, "phone": phone, "message": message}
         })
+
     with db.cursor() as cursor:
         cursor.execute("""
             INSERT INTO contact_us_submissions (name, email, phone, message)
@@ -40,7 +127,7 @@ def contact_submit(
         """, (name, email, phone, message))
         db.commit()
 
-    send_contact_us_notification(name, email, phone, message)
+    # TODO: email admin@dullknife.com when SMTP is configured
 
     return templates.TemplateResponse("contact.html", {
         "request": request,
@@ -59,24 +146,9 @@ def contact_link_page(member_id: int, request: Request, db=Depends(get_db)):
         member = cursor.fetchone()
     if not member:
         return RedirectResponse(url="/directory", status_code=303)
-    with db.cursor() as cursor:
-        cursor.execute(
-            "SELECT filename FROM member_images WHERE member_id = %s AND is_active = 1",
-            (member_id,)
-        )
-        img = cursor.fetchone()
-    with db.cursor() as cursor:
-        cursor.execute("SELECT name FROM wyoming_cities ORDER BY name")
-        wyoming_cities = [r["name"] for r in cursor.fetchall()]
-    with db.cursor() as cursor:
-        cursor.execute("SELECT name FROM countries ORDER BY name")
-        countries = [r["name"] for r in cursor.fetchall()]
     member_name = f"{member['first_name']} {member['last_name']}"
-    member_image = img["filename"] if img else None
     return templates.TemplateResponse("contact_link.html", {
-        "request": request, "member_id": member_id, "member_name": member_name,
-        "member_image": member_image, "sent": False,
-        "wyoming_cities": wyoming_cities, "countries": countries
+        "request": request, "member_id": member_id, "member_name": member_name, "sent": False
     })
 
 @router.post("/contact/{member_id}")
@@ -90,35 +162,9 @@ def contact_link_submit(
     email: str = Form(...),
     phone_1: Optional[str] = Form(None),
     phone_2: Optional[str] = Form(None),
-    city: Optional[str] = Form(None),
-    state: Optional[str] = Form(None),
-    zipcode: Optional[str] = Form(None),
-    country: Optional[str] = Form(None),
     message: str = Form(...),
-    recaptcha_token: Optional[str] = Form(None, alias="g-recaptcha-response"),
+    recaptcha_token: str = Form(default="", alias="g-recaptcha-response"),
 ):
-    if not verify_recaptcha(recaptcha_token or "", request.client.host):
-        with db.cursor() as cursor:
-            cursor.execute("SELECT id, first_name, last_name FROM members WHERE id = %s AND member_type = 'current'", (member_id,))
-            member = cursor.fetchone()
-        if not member:
-            return RedirectResponse(url="/directory", status_code=303)
-        with db.cursor() as cursor:
-            cursor.execute("SELECT filename FROM member_images WHERE member_id = %s AND is_active = 1", (member_id,))
-            img = cursor.fetchone()
-        with db.cursor() as cursor:
-            cursor.execute("SELECT name FROM wyoming_cities ORDER BY name")
-            wyoming_cities = [r["name"] for r in cursor.fetchall()]
-        with db.cursor() as cursor:
-            cursor.execute("SELECT name FROM countries ORDER BY name")
-            countries = [r["name"] for r in cursor.fetchall()]
-        return templates.TemplateResponse("contact_link.html", {
-            "request": request, "member_id": member_id,
-            "member_name": f"{member['first_name']} {member['last_name']}",
-            "member_image": img['filename'] if img else None,
-            "sent": False, "wyoming_cities": wyoming_cities, "countries": countries,
-            "error": "reCAPTCHA verification failed. Please try again."
-        })
     with db.cursor() as cursor:
         cursor.execute(
             "SELECT id, first_name, last_name FROM members WHERE id = %s AND member_type = 'current'",
@@ -128,37 +174,26 @@ def contact_link_submit(
     if not member:
         return RedirectResponse(url="/directory", status_code=303)
 
+    member_name = f"{member['first_name']} {member['last_name']}"
+    if not verify_recaptcha(recaptcha_token, get_client_ip(request)):
+        return templates.TemplateResponse("contact_link.html", {
+            "request": request, "member_id": member_id, "member_name": member_name,
+            "sent": False, "error": "reCAPTCHA verification failed. Please try again."
+        })
+
     with db.cursor() as cursor:
         cursor.execute("""
             INSERT INTO contact_submissions
             (member_id, visitor_first_name, visitor_last_name, visitor_organization,
-             visitor_email, visitor_phone_1, visitor_phone_2, visitor_city, visitor_state, visitor_zipcode, visitor_country, message)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (member_id, first_name, last_name, organization, email, phone_1, phone_2, city, state, zipcode, country, message))
+             visitor_email, visitor_phone_1, visitor_phone_2, message)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (member_id, first_name, last_name, organization, email, phone_1, phone_2, message))
         db.commit()
 
     member_name = f"{member['first_name']} {member['last_name']}"
-    with db.cursor() as cursor:
-        cursor.execute("SELECT email FROM members WHERE id = %s", (member_id,))
-        member_row = cursor.fetchone()
-    if member_row:
-        send_contact_member_message(
-            member_row["email"], member_name,
-            first_name, last_name, organization,
-            email, phone_1, phone_2,
-            city, state, zipcode, country, message
-        )
+    print(f"[CONTACT LINK] Message for {member_name} from {first_name} {last_name} <{email}>", flush=True)
+    # TODO: email message to member when SMTP is configured
 
     return templates.TemplateResponse("contact_link.html", {
         "request": request, "member_id": member_id, "member_name": member_name, "sent": True
     })
-
-@router.get("/api/wyoming-zipcodes/{city_name}")
-def wyoming_zipcodes_api(city_name: str, db=Depends(get_db)):
-    with db.cursor() as cursor:
-        cursor.execute(
-            "SELECT zipcode FROM wyoming_zipcodes WHERE city_name = %s ORDER BY zipcode",
-            (city_name,)
-        )
-        rows = cursor.fetchall()
-    return JSONResponse([r["zipcode"] for r in rows])

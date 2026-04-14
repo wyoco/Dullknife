@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dullknife - Advertising</title>
+        <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="/static/favicon.ico">
+</head>
+<body>
+        <header>
+        <nav>
+            <div class="logo"><a href="/"><img src="/static/images/jackRound.jpg" alt="Dullknife" class="nav-logo"></a></div>
+            <ul>
+                <li><a href="/admin">Admin Panel</a></li>
+                <li><a href="/admin/logout">Admin Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <h1>Advertising</h1>
+        <div class="admin-menu" style="flex-direction:row; max-width:none; margin-bottom:2rem;">
+            <a href="/admin/advertising/add" class="button admin-btn">Add Advertiser</a>
+            <a href="/admin" class="button admin-btn">Back to Panel</a>
+        </div>
+
+        <!-- ── Pending member submissions ─────────────────────────────── -->
+        {% if pending %}
+        <div class="admin-section">
+            <h2 style="color:#c0392b;">Pending Requests ({{ pending|length }})</h2>
+            <table style="width:100%; border-collapse:collapse; margin-top:0.75rem;">
+                <thead>
+                    <tr style="background:#c0392b; color:white;">
+                        <th style="padding:0.6rem 0.8rem; text-align:left;">Member</th>
+                        <th style="padding:0.6rem 0.8rem; text-align:left;">Company</th>
+                        <th style="padding:0.6rem 0.8rem; text-align:left;">Banner</th>
+                        <th style="padding:0.6rem 0.8rem; text-align:left;">Website</th>
+                        <th style="padding:0.6rem 0.8rem; text-align:left;">Submitted</th>
+                        <th style="padding:0.6rem 0.8rem; text-align:left;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for ad in pending %}
+                <tr style="border-bottom:1px solid #ddd;">
+                    <td style="padding:0.6rem 0.8rem;">
+                        {% if ad.username %}
+                        {{ ad.first_name }} {{ ad.last_name }}<br>
+                        <small style="color:#666;">@{{ ad.username }}</small>
+                        {% else %}
+                        <span style="color:#999;">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding:0.6rem 0.8rem;">{{ ad.company_name }}</td>
+                    <td style="padding:0.6rem 0.8rem;">
+                        {% if ad.image_filename %}
+                        <img src="/static/images/ads/{{ ad.image_filename }}" alt="{{ ad.company_name }}"
+                             style="width:150px; height:50px; object-fit:cover; border:1px solid #ccc; border-radius:2px;">
+                        {% else %}
+                        <span style="color:#999;">No image</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding:0.6rem 0.8rem;">
+                        {% if ad.website_url %}
+                        <a href="{{ ad.website_url }}" target="_blank" rel="noopener">{{ ad.website_url }}</a>
+                        {% else %}
+                        <span style="color:#999;">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding:0.6rem 0.8rem; color:#555;">
+                        {{ ad.created_at.strftime('%b %d, %Y') if ad.created_at else '' }}
+                    </td>
+                    <td style="padding:0.6rem 0.8rem;">
+                        <form method="post" action="/admin/advertising/approve/{{ ad.id }}" style="display:inline;">
+                            <button type="submit" class="button" style="background:#27ae60; color:white; border-color:#27ae60; margin-right:0.4rem;">Approve</button>
+                        </form>
+                        <form method="post" action="/admin/advertising/reject/{{ ad.id }}" style="display:inline;">
+                            <button type="submit" class="button" style="background:#c0392b; color:white; border-color:#c0392b;">Reject</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color:#888; margin-bottom:2rem;">No pending advertising requests.</p>
+        {% endif %}
+
+        <!-- ── Active / Inactive ads ───────────────────────────────────── -->
+        <div class="admin-section">
+            <h2>Active &amp; Inactive Ads</h2>
+            {% if active %}
+            <table style="width:100%; border-collapse:collapse; margin-top:0.75rem;">
+                <thead>
+                    <tr style="background:#2c3e50; color:white;">
+                        <th style="padding:0.6rem 0.8rem; text-align:left;">Company</th>
+                        <th style="padding:0.6rem 0.8rem; text-align:left;">Banner</th>
+                        <th style="padding:0.6rem 0.8rem; text-align:left;">Website</th>
+                        <th style="padding:0.6rem 0.8rem; text-align:left;">Order</th>
+                        <th style="padding:0.6rem 0.8rem; text-align:left;">Status</th>
+                        <th style="padding:0.6rem 0.8rem; text-align:left;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for ad in active %}
+                <tr style="border-bottom:1px solid #ddd;">
+                    <td style="padding:0.6rem 0.8rem;">{{ ad.company_name }}</td>
+                    <td style="padding:0.6rem 0.8rem;">
+                        {% if ad.image_filename %}
+                        <img src="/static/images/ads/{{ ad.image_filename }}" alt="{{ ad.company_name }}"
+                             style="width:150px; height:50px; object-fit:cover; border:1px solid #ccc; border-radius:2px;">
+                        {% else %}
+                        <span style="color:#999;">No image</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding:0.6rem 0.8rem;">
+                        {% if ad.website_url %}
+                        <a href="{{ ad.website_url }}" target="_blank" rel="noopener">{{ ad.website_url }}</a>
+                        {% else %}
+                        <span style="color:#999;">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding:0.6rem 0.8rem;">{{ ad.display_order }}</td>
+                    <td style="padding:0.6rem 0.8rem;">
+                        {% if ad.status == 'active' %}
+                        <span style="color:#27ae60; font-weight:bold;">Active</span>
+                        {% else %}
+                        <span style="color:#c0392b; font-weight:bold;">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding:0.6rem 0.8rem;">
+                        <form method="post" action="/admin/advertising/toggle/{{ ad.id }}" style="display:inline;">
+                            <button type="submit" class="button" style="margin-right:0.4rem;">
+                                {% if ad.status == 'active' %}Deactivate{% else %}Activate{% endif %}
+                            </button>
+                        </form>
+                        <form method="post" action="/admin/advertising/delete/{{ ad.id }}" style="display:inline;"
+                              onsubmit="return confirm('Delete {{ ad.company_name }}? This cannot be undone.');">
+                            <button type="submit" class="button" style="background:#c0392b; color:white; border-color:#c0392b;">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="color:#888; margin-top:0.75rem;">No ads yet. <a href="/admin/advertising/add">Add one directly</a> or approve a member request above.</p>
+            {% endif %}
+        </div>
+    </main>
+    <footer>
+        <p>&copy; 2026 Dullknife</p>
+    </footer>
+</body>
+</html>

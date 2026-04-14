@@ -4,15 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dullknife - Password Change Required</title>
+        <meta name="robots" content="noindex, nofollow">
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="/static/favicon.ico">
 </head>
 <body>
-    <header>
+        <header>
         <nav>
-            <div class="logo"><a href="/">Dullknife</a></div>
+            <div class="logo"><a href="/"><img src="/static/images/jackRound.jpg" alt="Dullknife" class="nav-logo"></a></div>
             <ul>
-                <li><a href=/directory>Member Directory</a></li>
-                <li>{% if request.cookies.get("member_id") %}<details class="nav-dropdown"><summary>My Account ▾</summary><ul class="nav-dropdown-menu"><li><a href="/member">My Page</a></li><li><a href="/logout">Logout</a></li></ul></details>{% else %}<a href="/login">Member Login</a>{% endif %}</li>
+                <li><a href="/directory">Member Directory</a></li>
+                <li>
+                    {% if request.cookies.get("member_id") %}
+                    <details class="nav-dropdown">
+                        <summary>My Account &#9662;</summary>
+                        <ul>
+                            <li><a href="/member">My Page</a></li>
+                            <li><a href="/logout">Logout</a></li>
+                        </ul>
+                    </details>
+                    {% else %}
+                    <a href="/login">Member Login</a>
+                    {% endif %}
+                </li>
                 <li><a href="/apply">Apply for Membership</a></li>
                 <li><a href="/about">About Us</a></li>
             </ul>

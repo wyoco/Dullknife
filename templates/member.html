@@ -4,17 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dullknife - Member Page</title>
+        <meta name="robots" content="noindex, nofollow">
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="/static/favicon.ico">
 </head>
 <body>
-    <header>
+        <header>
         <nav>
-            <div class="logo"><a href="/">Dullknife</a></div>
+            <div class="logo"><a href="/"><img src="/static/images/jackRound.jpg" alt="Dullknife" class="nav-logo"></a></div>
             <ul>
                 <li><a href="/directory">Member Directory</a></li>
-                <li><a href="/apply">Apply for Membership</a></li>
+                <li>
+                    <details class="nav-dropdown">
+                        <summary>My Account &#9662;</summary>
+                        <ul>
+                            <li><a href="/member">My Page</a></li>
+                            <li><a href="/logout">Logout</a></li>
+                        </ul>
+                    </details>
+                </li>
                 <li><a href="/about">About Us</a></li>
-                <li>{% if request.cookies.get("member_id") %}<details class="nav-dropdown"><summary>My Account ▾</summary><ul class="nav-dropdown-menu"><li><a href="/member">My Page</a></li><li><a href="/logout">Logout</a></li></ul></details>{% else %}<a href="/login">Member Login</a>{% endif %}</li>
             </ul>
         </nav>
     </header>
@@ -41,43 +50,40 @@
                 <label>Address</label>
                 <input type="text" name="address" value="{{ member.address or '' }}" disabled data-editable>
             </div>
-            <div class="form-group">
-                <label>City</label>
-                <select id="city-select" disabled data-editable onchange="handleCityChange()">
-                    <option value="">-- Select a Wyoming city --</option>
-                    {% for city in wyoming_cities %}
-                    <option value="{{ city }}"{% if city == member.city %} selected{% endif %}>{{ city }}</option>
-                    {% endfor %}
-                    <option value="Other"{% if member.city and member.city not in wyoming_cities %} selected{% endif %}>Other / Not in Wyoming</option>
-                </select>
-                <input type="text" id="city-input" name="city"
-                       value="{{ member.city or '' }}"
-                       placeholder="Enter your city"
-                       disabled data-editable
-                       style="{% if member.city and member.city not in wyoming_cities %}display:block{% else %}display:none{% endif %}; margin-top:0.4rem;">
-            </div>
+
+            <!-- State -->
             <div class="form-group">
                 <label>State</label>
-                <input type="text" name="state" id="state-input" value="{{ member.state or '' }}" disabled data-editable onchange="handleStateChange()">
+                <input type="text" id="state-view" value="{{ member.state or '' }}" disabled>
+                <select id="state-select" name="state" style="display:none" disabled onchange="handleStateChange()">
+                    <option value="">-- Select State --</option>
+                    {% for abbr, name in us_states %}
+                    <option value="{{ abbr }}" {% if member.state == abbr %}selected{% endif %}>{{ abbr }} — {{ name }}</option>
+                    {% endfor %}
+                </select>
             </div>
+
+            <!-- City -->
+            <div class="form-group">
+                <label>City</label>
+                <input type="text" name="city" id="city-text" value="{{ member.city or '' }}" disabled>
+                <select name="city" id="city-select" style="display:none" disabled onchange="handleCityChange()">
+                    <option value="">-- Select City --</option>
+                    {% for city in wy_cities %}
+                    <option value="{{ city }}" {% if member.city == city %}selected{% endif %}>{{ city }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- ZIP -->
             <div class="form-group">
                 <label>ZIP Code</label>
-                <select id="zip-select"
-                        disabled data-editable
-                        data-current-zip="{{ member.zipcode or '' }}"
-                        style="{% if member.city and member.city not in wyoming_cities %}display:none{% else %}display:block{% endif %};">
-                    {% if member.zipcode %}
-                    <option value="{{ member.zipcode }}" selected>{{ member.zipcode }}</option>
-                    {% else %}
+                <input type="text" name="zipcode" id="zip-text" value="{{ member.zipcode or '' }}" disabled>
+                <select name="zipcode" id="zip-select" style="display:none" disabled>
                     <option value="">-- Select ZIP --</option>
-                    {% endif %}
                 </select>
-                <input type="text" id="zip-input"
-                       value="{{ member.zipcode or '' }}"
-                       placeholder="ZIP Code"
-                       disabled data-editable
-                       style="{% if member.city and member.city not in wyoming_cities %}display:block{% else %}display:none{% endif %};">
             </div>
+
             <div class="form-group">
                 <label>Phone 1</label>
                 <input type="text" name="phone_1" value="{{ member.phone_1 or '' }}" disabled data-editable>
@@ -95,10 +101,10 @@
                 <div class="disciplines">
                     {% for d in disciplines %}
                     <label class="checkbox-label">
+                        {{ d.name }}
                         <input type="checkbox" name="disciplines" value="{{ d.id }}"
                                {% if d.checked %}checked{% endif %}
                                disabled data-editable>
-                        {{ d.name }}
                     </label>
                     {% endfor %}
                 </div>
@@ -108,190 +114,151 @@
                 <button type="submit" id="btn-save" style="display:none">Save</button>
                 <button type="button" id="btn-cancel" style="display:none" onclick="location.reload()">Cancel</button>
                 <a href="/" class="button">Home</a>
+                <a href="/request-ad" class="button">Request Advertising</a>
             </div>
         </form>
 
         <hr style="margin: 2rem 0;">
+        <h2>Profile Image</h2>
 
-        <h2>Profile Images</h2>
-        {% if request.query_params.get('img_error') == 'size' %}
-        <p class="error">Image must be exactly 400 x 400 pixels.</p>
-        {% elif request.query_params.get('img_error') == 'invalid' %}
-        <p class="error">Invalid image file. Please upload a JPG, PNG, or GIF.</p>
+        {% if upload_error %}
+        <p class="error">{{ upload_error }}</p>
         {% endif %}
 
+        <form method="post" action="/member/upload-image" enctype="multipart/form-data" style="margin-bottom:1.5rem;">
+            <label style="font-weight:bold;">Upload New Image</label>
+            <small style="display:block; color:#666; margin-bottom:0.4rem;">Must be exactly 400×400 px. Accepted: .jpg .jpeg .png .gif .webp</small>
+            <input type="file" name="image" accept=".jpg,.jpeg,.png,.gif,.webp" required>
+            <button type="submit" class="button" style="margin-left:0.5rem;">Upload</button>
+        </form>
+
         {% if images %}
-        <div class="image-gallery">
+        <div style="display:flex; flex-wrap:wrap; gap:1rem;">
             {% for img in images %}
-            <div class="image-card">
-                <img src="/static/images/{{ img.filename }}" alt="Profile image">
-                {% if img.is_active %}
-                <span class="active-badge">Active</span>
-                {% else %}
-                <form method="post" action="/member/set-active-image/{{ img.id }}" style="display:inline">
-                    <button type="submit" class="btn-small">Set Active</button>
-                </form>
-                {% endif %}
-                <form method="post" action="/member/delete-image/{{ img.id }}" style="display:inline"
-                      onsubmit="return confirm('Delete this image?')">
-                    <button type="submit" class="btn-small btn-danger">Delete</button>
-                </form>
+            <div style="text-align:center;">
+                <img src="/static/images/{{ img.filename }}" alt="Profile image"
+                     style="width:100px; height:100px; object-fit:cover; border:2px solid {% if img.is_active %}#27ae60{% else %}#ccc{% endif %}; border-radius:4px; display:block;">
+                <small style="display:block; margin-top:0.2rem; color:{% if img.is_active %}#27ae60{% else %}#999{% endif %};">
+                    {% if img.is_active %}Active{% else %}Inactive{% endif %}
+                </small>
+                <div style="margin-top:0.4rem; display:flex; gap:0.3rem; justify-content:center;">
+                    {% if not img.is_active %}
+                    <form method="post" action="/member/set-active-image/{{ img.id }}" style="display:inline;">
+                        <button type="submit" class="button" style="font-size:0.8rem; padding:0.2rem 0.5rem;">Set Active</button>
+                    </form>
+                    {% endif %}
+                    <form method="post" action="/member/delete-image/{{ img.id }}" style="display:inline;"
+                          onsubmit="return confirm('Delete this image?');">
+                        <button type="submit" class="button" style="font-size:0.8rem; padding:0.2rem 0.5rem; background:#c0392b; color:white; border-color:#c0392b;">Delete</button>
+                    </form>
+                </div>
             </div>
             {% endfor %}
         </div>
         {% else %}
-        <p>No images uploaded yet.</p>
+        <p style="color:#888;">No images uploaded yet.</p>
         {% endif %}
-
-        <h3>Upload Image</h3>
-        <p>Images must be exactly 400 x 400 pixels (JPG, PNG, or GIF).</p>
-        <form method="post" action="/member/upload-image" enctype="multipart/form-data">
-            <div class="form-group">
-                <input type="file" name="file" accept="image/*" required>
-            </div>
-            <div class="form-buttons">
-                <button type="submit">Upload</button>
-            </div>
-        </form>
 
     </main>
     <footer>
         <p>&copy; 2026 Dullknife</p>
     </footer>
     <script>
-        function handleCityChange() {
-            var citySelect = document.getElementById('city-select');
-            var cityInput = document.getElementById('city-input');
-            var zipSelect = document.getElementById('zip-select');
-            var zipInput = document.getElementById('zip-input');
-            var stateInput = document.getElementById('state-input');
-
-            if (citySelect.value === 'Other') {
-                cityInput.style.display = 'block';
-                cityInput.value = '';
-                cityInput.focus();
-                zipSelect.style.display = 'none';
-                zipSelect.name = '';
-                zipInput.style.display = 'block';
-                zipInput.name = 'zipcode';
-                zipInput.value = '';
-                stateInput.value = '';
-            } else if (citySelect.value === '') {
-                cityInput.style.display = 'none';
-                cityInput.value = '';
-                zipSelect.style.display = 'none';
-                zipSelect.name = '';
-                zipInput.style.display = 'block';
-                zipInput.name = 'zipcode';
-                zipInput.value = '';
-                stateInput.value = 'WY';
-            } else {
-                // Wyoming city selected
-                cityInput.style.display = 'none';
-                cityInput.value = citySelect.value;
-                stateInput.value = 'WY';
-                zipInput.style.display = 'none';
-                zipInput.name = '';
-                zipInput.value = '';
-                zipSelect.style.display = 'block';
-                zipSelect.name = 'zipcode';
-                loadZips(citySelect.value, null);
-            }
-        }
-
         function handleStateChange() {
-            var stateInput = document.getElementById('state-input');
-            var citySelect = document.getElementById('city-select');
-            var val = stateInput.value.trim().toUpperCase();
-            // If state changed away from WY while a Wyoming city is active, force text mode
-            if (val !== '' && val !== 'WY' && val !== 'WYOMING'
-                    && citySelect.value !== 'Other' && citySelect.value !== '') {
+            var state = document.getElementById('state-select').value;
+            if (state === 'WY') {
+                document.getElementById('city-text').style.display = 'none';
+                document.getElementById('city-text').disabled = true;
+                document.getElementById('city-select').style.display = 'block';
+                document.getElementById('city-select').disabled = false;
+                document.getElementById('city-select').value = '';
+                document.getElementById('zip-text').style.display = 'none';
+                document.getElementById('zip-text').disabled = true;
+                document.getElementById('zip-select').style.display = 'block';
+                document.getElementById('zip-select').disabled = false;
+                document.getElementById('zip-select').innerHTML = '<option value="">-- Select ZIP --</option>';
+            } else {
                 forceOtherMode();
             }
         }
 
         function forceOtherMode() {
-            var citySelect = document.getElementById('city-select');
-            var cityInput = document.getElementById('city-input');
-            var zipSelect = document.getElementById('zip-select');
-            var zipInput = document.getElementById('zip-input');
-
-            citySelect.value = 'Other';
-            cityInput.style.display = 'block';
-            cityInput.value = '';
-            zipSelect.style.display = 'none';
-            zipSelect.name = '';
-            zipInput.style.display = 'block';
-            zipInput.name = 'zipcode';
-            zipInput.value = '';
-            cityInput.focus();
+            document.getElementById('city-select').style.display = 'none';
+            document.getElementById('city-select').disabled = true;
+            document.getElementById('city-text').style.display = 'block';
+            document.getElementById('city-text').disabled = false;
+            document.getElementById('zip-select').style.display = 'none';
+            document.getElementById('zip-select').disabled = true;
+            document.getElementById('zip-text').style.display = 'block';
+            document.getElementById('zip-text').disabled = false;
         }
 
-        function loadZips(city, selectValue) {
-            var zipSelect = document.getElementById('zip-select');
+        function handleCityChange() {
+            var city = document.getElementById('city-select').value;
+            var zipSel = document.getElementById('zip-select');
+            zipSel.innerHTML = '<option value="">-- Select ZIP --</option>';
+            if (!city) return;
             fetch('/api/wyoming-zipcodes/' + encodeURIComponent(city))
                 .then(function(r) { return r.json(); })
                 .then(function(zips) {
-                    zipSelect.innerHTML = '';
-                    if (zips.length === 1) {
+                    zips.forEach(function(z) {
                         var opt = document.createElement('option');
-                        opt.value = zips[0];
-                        opt.textContent = zips[0];
-                        zipSelect.appendChild(opt);
-                    } else {
-                        var blank = document.createElement('option');
-                        blank.value = '';
-                        blank.textContent = '-- Select ZIP --';
-                        zipSelect.appendChild(blank);
-                        zips.forEach(function(z) {
-                            var opt = document.createElement('option');
-                            opt.value = z;
-                            opt.textContent = z;
-                            zipSelect.appendChild(opt);
-                        });
-                        if (selectValue) zipSelect.value = selectValue;
-                    }
+                        opt.value = z; opt.textContent = z;
+                        zipSel.appendChild(opt);
+                    });
+                    if (zips.length === 1) zipSel.value = zips[0];
                 });
         }
 
+        function loadZipsAndSelect(city, zip) {
+            var zipSel = document.getElementById('zip-select');
+            fetch('/api/wyoming-zipcodes/' + encodeURIComponent(city))
+                .then(function(r) { return r.json(); })
+                .then(function(zips) {
+                    zipSel.innerHTML = '<option value="">-- Select ZIP --</option>';
+                    zips.forEach(function(z) {
+                        var opt = document.createElement('option');
+                        opt.value = z; opt.textContent = z;
+                        zipSel.appendChild(opt);
+                    });
+                    zipSel.value = zip;
+                });
+        }
+
+        function initCityZipEdit() {
+            var currentState = document.getElementById('state-view').value;
+            document.getElementById('state-view').style.display = 'none';
+            var stateSel = document.getElementById('state-select');
+            stateSel.style.display = 'block';
+            stateSel.disabled = false;
+            stateSel.value = currentState;
+
+            if (currentState === 'WY') {
+                var currentCity = document.getElementById('city-text').value;
+                var currentZip  = document.getElementById('zip-text').value;
+                document.getElementById('city-text').style.display = 'none';
+                document.getElementById('city-text').disabled = true;
+                var citySel = document.getElementById('city-select');
+                citySel.style.display = 'block';
+                citySel.disabled = false;
+                citySel.value = currentCity;
+                document.getElementById('zip-text').style.display = 'none';
+                document.getElementById('zip-text').disabled = true;
+                document.getElementById('zip-select').style.display = 'block';
+                document.getElementById('zip-select').disabled = false;
+                if (currentCity) loadZipsAndSelect(currentCity, currentZip);
+            } else {
+                forceOtherMode();
+            }
+        }
+
         function enableEdit() {
-            document.querySelectorAll('[data-editable]').forEach(el => el.disabled = false);
+            document.querySelectorAll('[data-editable]').forEach(function(el) { el.disabled = false; });
             document.getElementById('btn-edit').style.display = 'none';
             document.getElementById('btn-save').style.display = 'inline-block';
             document.getElementById('btn-cancel').style.display = 'inline-block';
             initCityZipEdit();
         }
-
-        function initCityZipEdit() {
-            var citySelect = document.getElementById('city-select');
-            var zipSelect = document.getElementById('zip-select');
-            var zipInput = document.getElementById('zip-input');
-
-            if (citySelect.value && citySelect.value !== '' && citySelect.value !== 'Other') {
-                // Wyoming city pre-selected — reload full ZIP list, restore current selection
-                var currentZip = zipSelect.dataset.currentZip;
-                zipSelect.name = 'zipcode';
-                zipInput.name = '';
-                loadZips(citySelect.value, currentZip);
-            } else {
-                zipSelect.name = '';
-                zipInput.name = 'zipcode';
-            }
-        }
-
-        // On page load: set name attributes to match the initial state
-        (function() {
-            var citySelect = document.getElementById('city-select');
-            var zipSelect = document.getElementById('zip-select');
-            var zipInput = document.getElementById('zip-input');
-            if (citySelect.value && citySelect.value !== '' && citySelect.value !== 'Other') {
-                zipSelect.name = 'zipcode';
-                zipInput.name = '';
-            } else {
-                zipSelect.name = '';
-                zipInput.name = 'zipcode';
-            }
-        })();
     </script>
 </body>
 </html>

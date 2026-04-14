@@ -1,12 +1,15 @@
-from fastapi import APIRouter, Request, Depends, Form, Response
+from fastapi import APIRouter, Request, Depends, Form, Response, UploadFile, File
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
 from typing import Optional, List
 import bcrypt
 from database import get_db
-from utils.email import send_password_reset
-from utils.recaptcha import verify_recaptcha
+from utils.security import sign_member_session, verify_member_session, get_member_id
+from utils.recaptcha import verify_recaptcha, SITE_KEY
 import time
+import io
+import os
+from PIL import Image as PilImage
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -28,22 +31,23 @@ def login_submit(
     username: str = Form(...),
     password: str = Form(...),
     suppress_recaptcha: Optional[str] = Form(None),
-    recaptcha_token: Optional[str] = Form(None, alias="g-recaptcha-response"),
+    recaptcha_token: str = Form(default="", alias="g-recaptcha-response"),
 ):
+    # Verify reCAPTCHA unless suppressed
+    if not request.cookies.get("suppress_recaptcha"):
+        from utils.security import get_client_ip
+        if not verify_recaptcha(recaptcha_token, get_client_ip(request)):
+            return templates.TemplateResponse("login.html", {
+                "request": request, "show_recaptcha": True,
+                "error": "reCAPTCHA verification failed. Please try again."
+            })
+
     with db.cursor() as cursor:
         cursor.execute("""
             SELECT id, username, password_hash, member_type, failed_attempts, lockout_until
             FROM members WHERE username = %s
         """, (username,))
         member = cursor.fetchone()
-
-    if not request.cookies.get("suppress_recaptcha"):
-        if not verify_recaptcha(recaptcha_token or "", request.client.host):
-            show_recaptcha = True
-            return templates.TemplateResponse("login.html", {
-                "request": request, "show_recaptcha": show_recaptcha,
-                "error": "reCAPTCHA verification failed. Please try again."
-            })
 
     if not member:
         return RedirectResponse(url="/login-failed", status_code=303)
@@ -59,7 +63,7 @@ def login_submit(
         if password != "temporary":
             return RedirectResponse(url="/login-failed", status_code=303)
         resp = RedirectResponse(url="/new-member-reset", status_code=303)
-        resp.set_cookie("member_id", str(member["id"]), httponly=True)
+        resp.set_cookie("member_id", sign_member_session(member["id"]), httponly=True, secure=True, samesite="Lax")
         return resp
 
     if not bcrypt.checkpw(password.encode(), member["password_hash"].encode()):
@@ -85,9 +89,9 @@ def login_submit(
         db.commit()
 
     resp = RedirectResponse(url="/member", status_code=303)
-    resp.set_cookie("member_id", str(member["id"]), httponly=True)
+    resp.set_cookie("member_id", sign_member_session(member["id"]), httponly=True, secure=True, samesite="Lax")
     if suppress_recaptcha:
-        resp.set_cookie("suppress_recaptcha", "1", httponly=True, max_age=31536000)
+        resp.set_cookie("suppress_recaptcha", "1", httponly=True, secure=True, samesite="Lax", max_age=31536000)
     return resp
 
 @router.get("/login-failed")
@@ -98,9 +102,25 @@ def login_failed(request: Request, attempts: int = 0):
         warning = f"WARNING: {attempts} failed login attempts detected. You have {remaining} more attempt(s) before this account is locked."
     return templates.TemplateResponse("login_failed.html", {"request": request, "warning": warning})
 
+MEMBER_IMAGE_DIR = "static/images"
+
+US_STATES = [
+    ("AL","Alabama"),("AK","Alaska"),("AZ","Arizona"),("AR","Arkansas"),("CA","California"),
+    ("CO","Colorado"),("CT","Connecticut"),("DE","Delaware"),("FL","Florida"),("GA","Georgia"),
+    ("HI","Hawaii"),("ID","Idaho"),("IL","Illinois"),("IN","Indiana"),("IA","Iowa"),
+    ("KS","Kansas"),("KY","Kentucky"),("LA","Louisiana"),("ME","Maine"),("MD","Maryland"),
+    ("MA","Massachusetts"),("MI","Michigan"),("MN","Minnesota"),("MS","Mississippi"),("MO","Missouri"),
+    ("MT","Montana"),("NE","Nebraska"),("NV","Nevada"),("NH","New Hampshire"),("NJ","New Jersey"),
+    ("NM","New Mexico"),("NY","New York"),("NC","North Carolina"),("ND","North Dakota"),("OH","Ohio"),
+    ("OK","Oklahoma"),("OR","Oregon"),("PA","Pennsylvania"),("RI","Rhode Island"),("SC","South Carolina"),
+    ("SD","South Dakota"),("TN","Tennessee"),("TX","Texas"),("UT","Utah"),("VT","Vermont"),
+    ("VA","Virginia"),("WA","Washington"),("WV","West Virginia"),("WI","Wisconsin"),("WY","Wyoming"),
+    ("DC","District of Columbia"),
+]
+
 @router.get("/member")
 def member_page(request: Request, db=Depends(get_db)):
-    member_id = request.cookies.get("member_id")
+    member_id = get_member_id(request)
     if not member_id:
         return RedirectResponse(url="/login", status_code=303)
 
@@ -119,23 +139,105 @@ def member_page(request: Request, db=Depends(get_db)):
         cursor.execute("SELECT id, name FROM disciplines ORDER BY name")
         all_disciplines = cursor.fetchall()
 
-    disciplines = [{"id": d["id"], "name": d["name"], "checked": d["id"] in member_disc_ids} for d in all_disciplines]
-
     with db.cursor() as cursor:
-        cursor.execute("SELECT id, filename, is_active FROM member_images WHERE member_id = %s ORDER BY uploaded_at DESC", (member_id,))
+        cursor.execute("SELECT * FROM member_images WHERE member_id = %s ORDER BY is_active DESC, uploaded_at DESC", (member_id,))
         images = cursor.fetchall()
 
     with db.cursor() as cursor:
         cursor.execute("SELECT name FROM wyoming_cities ORDER BY name")
-        wyoming_cities = [r["name"] for r in cursor.fetchall()]
+        wy_cities = [row["name"] for row in cursor.fetchall()]
+
+    disciplines = [{"id": d["id"], "name": d["name"], "checked": d["id"] in member_disc_ids} for d in all_disciplines]
 
     return templates.TemplateResponse("member.html", {
         "request": request,
         "member": member,
         "disciplines": disciplines,
         "images": images,
-        "wyoming_cities": wyoming_cities,
+        "wy_cities": wy_cities,
+        "us_states": US_STATES,
+        "upload_error": None,
     })
+
+
+@router.post("/member/upload-image")
+async def upload_image(request: Request, db=Depends(get_db), image: UploadFile = File(...)):
+    member_id = get_member_id(request)
+    if not member_id:
+        return RedirectResponse(url="/login", status_code=303)
+
+    contents = await image.read()
+    if len(contents) > 5 * 1024 * 1024:
+        return RedirectResponse(url="/member", status_code=303)
+    try:
+        img = PilImage.open(io.BytesIO(contents))
+        if img.size != (400, 400):
+            with db.cursor() as cursor:
+                cursor.execute("SELECT * FROM member_images WHERE member_id = %s ORDER BY is_active DESC, uploaded_at DESC", (member_id,))
+                images = cursor.fetchall()
+            with db.cursor() as cursor:
+                cursor.execute("SELECT * FROM members WHERE id = %s", (member_id,))
+                member = cursor.fetchone()
+            with db.cursor() as cursor:
+                cursor.execute("SELECT discipline_id FROM member_disciplines WHERE member_id = %s", (member_id,))
+                member_disc_ids = {row["discipline_id"] for row in cursor.fetchall()}
+            with db.cursor() as cursor:
+                cursor.execute("SELECT id, name FROM disciplines ORDER BY name")
+                all_disciplines = cursor.fetchall()
+            disciplines = [{"id": d["id"], "name": d["name"], "checked": d["id"] in member_disc_ids} for d in all_disciplines]
+            return templates.TemplateResponse("member.html", {
+                "request": request, "member": member, "disciplines": disciplines,
+                "images": images, "upload_error": f"Image must be exactly 400×400 px. Yours is {img.size[0]}×{img.size[1]} px."
+            })
+    except Exception:
+        return RedirectResponse(url="/member", status_code=303)
+
+    ext = os.path.splitext(image.filename)[1].lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+        return RedirectResponse(url="/member", status_code=303)
+
+    subdir = os.path.join(MEMBER_IMAGE_DIR, str(member_id))
+    os.makedirs(subdir, exist_ok=True)
+    hex_name = secrets.token_hex(12)
+    filename = f"{str(member_id)}/{hex_name}{ext}"
+    with open(os.path.join(MEMBER_IMAGE_DIR, filename), "wb") as f:
+        f.write(contents)
+
+    with db.cursor() as cursor:
+        cursor.execute("INSERT INTO member_images (member_id, filename, is_active) VALUES (%s, %s, 0)", (member_id, filename))
+        db.commit()
+
+    return RedirectResponse(url="/member", status_code=303)
+
+
+@router.post("/member/set-active-image/{image_id}")
+def set_active_image(image_id: int, request: Request, db=Depends(get_db)):
+    member_id = get_member_id(request)
+    if not member_id:
+        return RedirectResponse(url="/login", status_code=303)
+    with db.cursor() as cursor:
+        cursor.execute("UPDATE member_images SET is_active = 0 WHERE member_id = %s", (member_id,))
+        cursor.execute("UPDATE member_images SET is_active = 1 WHERE id = %s AND member_id = %s", (image_id, member_id))
+        db.commit()
+    return RedirectResponse(url="/member", status_code=303)
+
+
+@router.post("/member/delete-image/{image_id}")
+def delete_image(image_id: int, request: Request, db=Depends(get_db)):
+    member_id = get_member_id(request)
+    if not member_id:
+        return RedirectResponse(url="/login", status_code=303)
+    with db.cursor() as cursor:
+        cursor.execute("SELECT filename FROM member_images WHERE id = %s AND member_id = %s", (image_id, member_id))
+        row = cursor.fetchone()
+    if row:
+        path = os.path.join(MEMBER_IMAGE_DIR, row["filename"])
+        if os.path.exists(path):
+            os.remove(path)
+        with db.cursor() as cursor:
+            cursor.execute("DELETE FROM member_images WHERE id = %s AND member_id = %s", (image_id, member_id))
+            db.commit()
+    return RedirectResponse(url="/member", status_code=303)
 
 @router.post("/member")
 def member_update(
@@ -153,9 +255,15 @@ def member_update(
     skills_summary: Optional[str] = Form(None),
     disciplines: Optional[List[str]] = Form(default=None),
 ):
-    member_id = request.cookies.get("member_id")
+    member_id = get_member_id(request)
     if not member_id:
         return RedirectResponse(url="/login", status_code=303)
+
+    with db.cursor() as cursor:
+        cursor.execute("SELECT member_type FROM members WHERE id = %s", (member_id,))
+        m = cursor.fetchone()
+        if not m or m["member_type"] != "current":
+            return RedirectResponse(url="/login", status_code=303)
 
     with db.cursor() as cursor:
         cursor.execute("""
@@ -193,6 +301,7 @@ def banned_account(request: Request):
 import secrets
 import re
 import datetime
+from utils.email import send_password_reset
 
 def password_strength(password):
     if len(password) < 8:
@@ -223,16 +332,24 @@ def reset_password_submit(request: Request, db=Depends(get_db), email: str = For
         member = cursor.fetchone()
 
     if member:
-        token = secrets.token_urlsafe(32)
-        expires_at = datetime.datetime.now() + datetime.timedelta(minutes=20)
+        # Cooldown: skip if a token was created in the last 5 minutes
         with db.cursor() as cursor:
             cursor.execute(
-                "INSERT INTO password_reset_tokens (member_id, token, expires_at) VALUES (%s, %s, %s)",
-                (member["id"], token, expires_at)
+                "SELECT id FROM password_reset_tokens WHERE member_id = %s AND created_at > NOW() - INTERVAL 5 MINUTE",
+                (member["id"],)
             )
-            db.commit()
-        reset_url = f"https://www.dullknife.com/change-password?token={token}"
-        send_password_reset(email, reset_url)
+            recent = cursor.fetchone()
+        if not recent:
+            token = secrets.token_urlsafe(32)
+            expires_at = datetime.datetime.now() + datetime.timedelta(minutes=20)
+            with db.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO password_reset_tokens (member_id, token, expires_at) VALUES (%s, %s, %s)",
+                    (member["id"], token, expires_at)
+                )
+                db.commit()
+            reset_url = f"https://www.dullknife.com/change-password?token={token}"
+            send_password_reset(email, reset_url)
 
     return templates.TemplateResponse("reset_password.html", {"request": request, "sent": True})
 
@@ -288,6 +405,7 @@ def change_password_submit(
             "form_error": "Password is too weak. Please use at least 8 characters with a mix of uppercase, lowercase, numbers, or symbols."
         })
 
+    # Check password reuse
     with db.cursor() as cursor:
         cursor.execute("SELECT password_hash FROM members WHERE id = %s", (record["member_id"],))
         current = cursor.fetchone()
@@ -310,14 +428,14 @@ def change_password_submit(
 
 @router.get("/new-member-reset")
 def new_member_reset(request: Request):
-    member_id = request.cookies.get("member_id")
+    member_id = get_member_id(request)
     if not member_id:
         return RedirectResponse(url="/login", status_code=303)
     return templates.TemplateResponse("new_member_reset.html", {"request": request})
 
 @router.get("/new-member-change-password")
 def new_member_change_password(request: Request, db=Depends(get_db)):
-    member_id = request.cookies.get("member_id")
+    member_id = get_member_id(request)
     if not member_id:
         return RedirectResponse(url="/login", status_code=303)
     with db.cursor() as cursor:
@@ -336,7 +454,7 @@ def new_member_change_password_submit(
     password: str = Form(...),
     confirm: str = Form(...),
 ):
-    member_id = request.cookies.get("member_id")
+    member_id = get_member_id(request)
     if not member_id:
         return RedirectResponse(url="/login", status_code=303)
 
@@ -351,12 +469,6 @@ def new_member_change_password_submit(
             "request": request, "error": None, "success": False, "token": None,
             "form_error": "Password is too weak. Please use at least 8 characters with a mix of uppercase, lowercase, numbers, or symbols.",
             "new_member": True
-        })
-
-    if password == "temporary":
-        return templates.TemplateResponse("change_password.html", {
-            "request": request, "error": None, "success": False, "token": None,
-            "form_error": "You must choose a new password.", "new_member": True
         })
 
     hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
@@ -374,74 +486,84 @@ def new_member_cancel(request: Request):
     resp.delete_cookie("member_id")
     return resp
 
-from fastapi import UploadFile, File
-import os
-import io
-from PIL import Image as PilImage
 
-IMAGES_DIR = "static/images"
+# ── Request Advertising ──────────────────────────────────────────────────────
 
-@router.post("/member/upload-image")
-def upload_image(request: Request, db=Depends(get_db), file: UploadFile = File(...)):
-    member_id = request.cookies.get("member_id")
+ADS_IMAGE_DIR = "static/images/ads"
+
+@router.get("/request-ad")
+def request_ad_page(request: Request, db=Depends(get_db)):
+    member_id = get_member_id(request)
     if not member_id:
         return RedirectResponse(url="/login", status_code=303)
+    with db.cursor() as cursor:
+        cursor.execute("SELECT id FROM members WHERE id = %s AND member_type = 'current'", (member_id,))
+        if not cursor.fetchone():
+            return RedirectResponse(url="/login", status_code=303)
+    with db.cursor() as cursor:
+        cursor.execute(
+            "SELECT * FROM advertisers WHERE member_id = %s ORDER BY created_at DESC",
+            (member_id,)
+        )
+        submissions = cursor.fetchall()
+    return templates.TemplateResponse("request_ad.html", {
+        "request": request, "submissions": submissions, "error": None, "success": False
+    })
 
-    contents = file.file.read()
 
+@router.post("/request-ad")
+async def request_ad_submit(
+    request: Request,
+    db=Depends(get_db),
+    company_name: str = Form(...),
+    website_url: Optional[str] = Form(None),
+    image: UploadFile = File(...),
+):
+    member_id = get_member_id(request)
+    if not member_id:
+        return RedirectResponse(url="/login", status_code=303)
+    with db.cursor() as cursor:
+        cursor.execute("SELECT id FROM members WHERE id = %s AND member_type = 'current'", (member_id,))
+        if not cursor.fetchone():
+            return RedirectResponse(url="/login", status_code=303)
+
+    def render_error(msg):
+        with db.cursor() as c:
+            c.execute("SELECT * FROM advertisers WHERE member_id = %s ORDER BY created_at DESC", (member_id,))
+            subs = c.fetchall()
+        return templates.TemplateResponse("request_ad.html", {
+            "request": request, "submissions": subs, "error": msg, "success": False
+        })
+
+    contents = await image.read()
+    if len(contents) > 5 * 1024 * 1024:
+        return render_error("File is too large. Maximum size is 5 MB.")
     try:
         img = PilImage.open(io.BytesIO(contents))
-        if img.size != (400, 400):
-            return RedirectResponse(url="/member?img_error=size", status_code=303)
+        if img.size != (300, 100):
+            return render_error(f"Image must be exactly 300×100 px. Yours is {img.size[0]}×{img.size[1]} px.")
     except Exception:
-        return RedirectResponse(url="/member?img_error=invalid", status_code=303)
+        return render_error("Could not read the image file. Please upload a valid image.")
 
-    member_dir = os.path.join(IMAGES_DIR, str(member_id))
-    os.makedirs(member_dir, exist_ok=True)
-    ext = os.path.splitext(file.filename or "")[1].lower()
-    if ext not in (".jpg", ".jpeg", ".png", ".gif"):
-        ext = ".jpg"
+    ext = os.path.splitext(image.filename)[1].lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+        return render_error("Unsupported file type. Use .jpg, .jpeg, .png, .gif, or .webp.")
+
     filename = secrets.token_hex(16) + ext
-    filepath = os.path.join(member_dir, filename)
-    with open(filepath, "wb") as f:
+    os.makedirs(ADS_IMAGE_DIR, exist_ok=True)
+    with open(os.path.join(ADS_IMAGE_DIR, filename), "wb") as f:
         f.write(contents)
 
     with db.cursor() as cursor:
-        cursor.execute("SELECT COUNT(*) as cnt FROM member_images WHERE member_id = %s", (member_id,))
-        count = cursor.fetchone()["cnt"]
-        is_active = 1 if count == 0 else 0
         cursor.execute(
-            "INSERT INTO member_images (member_id, filename, is_active) VALUES (%s, %s, %s)",
-            (member_id, f"{member_id}/{filename}", is_active)
+            "INSERT INTO advertisers (company_name, website_url, image_filename, member_id, status, display_order) VALUES (%s, %s, %s, %s, 'pending', 0)",
+            (company_name, website_url or None, filename, int(member_id))
         )
         db.commit()
 
-    return RedirectResponse(url="/member", status_code=303)
-
-@router.post("/member/set-active-image/{image_id}")
-def set_active_image(image_id: int, request: Request, db=Depends(get_db)):
-    member_id = request.cookies.get("member_id")
-    if not member_id:
-        return RedirectResponse(url="/login", status_code=303)
     with db.cursor() as cursor:
-        cursor.execute("UPDATE member_images SET is_active = 0 WHERE member_id = %s", (member_id,))
-        cursor.execute("UPDATE member_images SET is_active = 1 WHERE id = %s AND member_id = %s", (image_id, member_id))
-        db.commit()
-    return RedirectResponse(url="/member", status_code=303)
-
-@router.post("/member/delete-image/{image_id}")
-def delete_image(image_id: int, request: Request, db=Depends(get_db)):
-    member_id = request.cookies.get("member_id")
-    if not member_id:
-        return RedirectResponse(url="/login", status_code=303)
-    with db.cursor() as cursor:
-        cursor.execute("SELECT filename FROM member_images WHERE id = %s AND member_id = %s", (image_id, member_id))
-        row = cursor.fetchone()
-    if row:
-        filepath = os.path.join(IMAGES_DIR, row["filename"])
-        if os.path.exists(filepath):
-            os.remove(filepath)
-        with db.cursor() as cursor:
-            cursor.execute("DELETE FROM member_images WHERE id = %s", (image_id,))
-            db.commit()
-    return RedirectResponse(url="/member", status_code=303)
+        cursor.execute("SELECT * FROM advertisers WHERE member_id = %s ORDER BY created_at DESC", (member_id,))
+        submissions = cursor.fetchall()
+    return templates.TemplateResponse("request_ad.html", {
+        "request": request, "submissions": submissions, "error": None, "success": True
+    })
