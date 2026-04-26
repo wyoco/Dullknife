@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patent Attorney Questionnaire</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="/static/favicon.ico">
+    <style>
+        .questionnaire-form { margin-top: 15px; }
+        .questionnaire-form h2 { margin-top: 20px; margin-bottom: 15px; }
+        .questionnaire-form .form-group { margin-top: 20px; margin-bottom: 10px; }
+        .questionnaire-form label { margin-bottom: 10px; display: block; }
+        .questionnaire-form textarea { width: 50%; }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo"><a href="/"><img src="/static/images/jackRound.jpg" alt="Dullknife" class="nav-logo"></a></div>
+            <ul>
+                <li><a href="/questionnaire/logout">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <h1>Patent Attorney Questionnaire</h1>
+        <p style="margin-top: 15px; margin-bottom: 15px;">This questionnaire covers the key areas we consider essential for a successful patent filing. We appreciate your time and thoroughness in responding.</p>
+        {% if success %}
+        <div class="success">
+            <p>Questionnaire for <strong>{{ saved_attorney }}</strong> has been submitted. Thank you.</p>
+            <p style="margin-top: 1rem;">
+                <a href="/questionnaire" class="button">Submit Another</a>
+            </p>
+        </div>
+        {% else %}
+
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+
+        <form method="post" action="/questionnaire" class="questionnaire-form">
+            <h2>Attorney Information</h2>
+            <div class="form-group">
+                <label for="attorney_name">Attorney Name <span style="color:red">*</span></label>
+                <input type="text" name="attorney_name" id="attorney_name" value="{{ form.get('attorney_name', '') }}" required>
+            </div>
+            <div class="form-group">
+                <label for="firm_name">Firm Name</label>
+                <input type="text" name="firm_name" id="firm_name" value="{{ form.get('firm_name', '') }}">
+            </div>
+            <div class="form-group">
+                <label for="attorney_email">Email</label>
+                <input type="email" name="attorney_email" id="attorney_email" value="{{ form.get('attorney_email', '') }}">
+            </div>
+            <div class="form-group">
+                <label for="attorney_phone">Phone</label>
+                <input type="text" name="attorney_phone" id="attorney_phone" value="{{ form.get('attorney_phone', '') }}">
+            </div>
+            {% for section_key, title, questions in sections %}
+            <h2>{{ title }}</h2>
+            {% for field_key, question_text in questions %}
+            <div class="form-group">
+                <label for="{{ field_key }}">{{ question_text }}</label>
+                <textarea name="{{ field_key }}" id="{{ field_key }}" rows="7">{{ form.get(field_key, '') }}</textarea>
+            </div>
+            {% endfor %}
+            {% endfor %}
+
+            <h2>Notes</h2>
+            <div class="form-group">
+                <label for="notes">General notes about this consultation</label>
+                <textarea name="notes" id="notes" rows="11">{{ form.get('notes', '') }}</textarea>
+            </div>
+
+            <h2>Action Items</h2>
+            <div class="form-group">
+                <label for="action_items">Follow-up tasks or next steps</label>
+                <textarea name="action_items" id="action_items" rows="11">{{ form.get('action_items', '') }}</textarea>
+            </div>
+
+            <div class="form-actions" style="margin-top: 1.5rem;">
+                <button type="submit" class="button">Save &amp; Email</button>
+                <a href="/questionnaire/logout" class="button">Cancel</a>
+            </div>
+        </form>
+        {% endif %}
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Dullknife</p>
+    </footer>
+</body>
+</html>

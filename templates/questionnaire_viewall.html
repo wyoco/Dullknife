@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saved Questionnaires</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="/static/favicon.ico">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo"><a href="/"><img src="/static/images/jackRound.jpg" alt="Dullknife" class="nav-logo"></a></div>
+            <ul>
+                <li><a href="/questionnaire">New Questionnaire</a></li>
+                <li><a href="/questionnaire/logout">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <h1>Saved Questionnaires</h1>
+        <p style="margin-bottom: 1.5rem;"><a href="/questionnaire" class="button">New Questionnaire</a></p>
+
+        {% if questionnaires %}
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #2c3e50; color: #fff;">
+                    <th style="padding: 0.6rem 0.8rem; text-align: left;">Attorney</th>
+                    <th style="padding: 0.6rem 0.8rem; text-align: left;">Firm</th>
+                    <th style="padding: 0.6rem 0.8rem; text-align: left;">Email</th>
+                    <th style="padding: 0.6rem 0.8rem; text-align: left;">Consultation Date</th>
+                    <th style="padding: 0.6rem 0.8rem; text-align: left;">Saved</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for q in questionnaires %}
+                <tr onclick="window.location='/questionnaire/view/{{ q.id }}'" style="cursor: pointer; border-bottom: 1px solid #ddd;" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background=''">
+                    <td style="padding: 0.6rem 0.8rem;">{{ q.attorney_name }}</td>
+                    <td style="padding: 0.6rem 0.8rem;">{{ q.firm_name or '' }}</td>
+                    <td style="padding: 0.6rem 0.8rem;">{{ q.attorney_email or '' }}</td>
+                    <td style="padding: 0.6rem 0.8rem;">{{ q.consultation_date or '' }}</td>
+                    <td style="padding: 0.6rem 0.8rem;">{{ q.created_at.strftime('%Y-%m-%d %H:%M') if q.created_at else '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No questionnaires saved yet.</p>
+        {% endif %}
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Dullknife</p>
+    </footer>
+</body>
+</html>

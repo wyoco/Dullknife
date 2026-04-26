@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Questionnaire — {{ q.attorney_name }}</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="/static/favicon.ico">
+    <style>
+        .questionnaire-form { margin-top: 15px; }
+        .questionnaire-form h2 { margin-top: 20px; margin-bottom: 15px; }
+        .questionnaire-form .form-group { margin-top: 20px; margin-bottom: 10px; }
+        .questionnaire-form label { margin-bottom: 10px; display: block; }
+        .questionnaire-form textarea { width: 50%; }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo"><a href="/"><img src="/static/images/jackRound.jpg" alt="Dullknife" class="nav-logo"></a></div>
+            <ul>
+                <li><a href="/questionnaire">New Questionnaire</a></li>
+                <li><a href="/questionnaire/viewall">Saved Results</a></li>
+                <li><a href="/questionnaire/logout">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <h1>Questionnaire — {{ q.attorney_name }}</h1>
+        <p style="margin-bottom: 1.5rem;">
+            <a href="/questionnaire/viewall" class="button">Back to Results</a>
+            <a href="/questionnaire" class="button">New Questionnaire</a>
+        </p>
+
+        <div class="questionnaire-form">
+        <h2>Attorney Information</h2>
+        <div class="form-group">
+            <label>Attorney Name</label>
+            <input type="text" value="{{ q.attorney_name }}" disabled>
+        </div>
+        {% if q.firm_name %}
+        <div class="form-group">
+            <label>Firm Name</label>
+            <input type="text" value="{{ q.firm_name }}" disabled>
+        </div>
+        {% endif %}
+        {% if q.attorney_email %}
+        <div class="form-group">
+            <label>Email</label>
+            <input type="text" value="{{ q.attorney_email }}" disabled>
+        </div>
+        {% endif %}
+        {% if q.attorney_phone %}
+        <div class="form-group">
+            <label>Phone</label>
+            <input type="text" value="{{ q.attorney_phone }}" disabled>
+        </div>
+        {% endif %}
+        {% if q.consultation_date %}
+        <div class="form-group">
+            <label>Consultation Date</label>
+            <input type="text" value="{{ q.consultation_date }}" disabled>
+        </div>
+        {% endif %}
+
+        {% for section_key, title, questions in sections %}
+        {% set ns = namespace(has_answers=false) %}
+        {% for field_key, question_text in questions %}
+            {% if responses.get(field_key) %}
+                {% set ns.has_answers = true %}
+            {% endif %}
+        {% endfor %}
+        {% if ns.has_answers %}
+        <h2>{{ title }}</h2>
+        {% for field_key, question_text in questions %}
+        {% if responses.get(field_key) %}
+        <div class="form-group">
+            <label>{{ question_text }}</label>
+            <textarea rows="7" disabled>{{ responses[field_key] }}</textarea>
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+        {% endfor %}
+
+        {% if q.notes %}
+        <h2>Notes</h2>
+        <div class="form-group">
+            <label>General notes about this consultation</label>
+            <textarea rows="11" disabled>{{ q.notes }}</textarea>
+        </div>
+        {% endif %}
+
+        {% if q.action_items %}
+        <h2>Action Items</h2>
+        <div class="form-group">
+            <label>Follow-up tasks or next steps</label>
+            <textarea rows="11" disabled>{{ q.action_items }}</textarea>
+        </div>
+        {% endif %}
+
+        <p style="margin-top: 1.5rem; color: #888; font-size: 0.85rem;">
+            Saved: {{ q.created_at.strftime('%Y-%m-%d %H:%M') if q.created_at else '' }}
+        </p>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Dullknife</p>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brand {{ brand.brand_number }} — Wyoming Brand Book</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="/static/favicon.ico">
+    <style>
+        .bd-container { max-width: 700px; margin: 0 auto; }
+        .bd-back { display: inline-block; margin-bottom: 1rem; color: #492e25; text-decoration: none; font-size: 0.9rem; }
+        .bd-back:hover { text-decoration: underline; }
+        .bd-card { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem; }
+        .bd-header { display: flex; gap: 1.5rem; align-items: flex-start; margin-bottom: 1.2rem; }
+        .bd-brand-img { width: 150px; height: 120px; object-fit: contain; border: 1px solid #eee; border-radius: 4px; background: white; flex-shrink: 0; }
+        .bd-brand-img-placeholder { width: 150px; height: 120px; background: #f5f5f5; border: 1px solid #eee; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #ccc; flex-shrink: 0; }
+        .bd-title { flex: 1; }
+        .bd-number { font-size: 1.4rem; font-weight: bold; color: #492e25; margin-bottom: 0.3rem; }
+        .bd-name { font-size: 1.1rem; margin-bottom: 0.5rem; }
+        .bd-divider { border: none; border-top: 1px solid #eee; margin: 1rem 0; }
+        .bd-grid { display: grid; grid-template-columns: 130px 1fr; gap: 0.5rem 1rem; font-size: 0.95rem; }
+        .bd-label { font-weight: bold; color: #666; }
+        .bd-value { color: #333; }
+        .bd-loc-list { list-style: none; padding: 0; margin: 0; }
+        .bd-loc-list li { margin-bottom: 0.2rem; }
+        .bd-loc-code { font-weight: bold; color: #492e25; }
+        .bd-loc-desc { color: #888; font-size: 0.85rem; }
+        @media (max-width: 600px) {
+            .bd-header { flex-direction: column; align-items: center; text-align: center; }
+            .bd-grid { grid-template-columns: 1fr; }
+            .bd-label { margin-top: 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo"><a href="/"><img src="/static/images/jackRound.jpg" alt="Dullknife" class="nav-logo"></a></div>
+            <ul>
+                <li><a href="/directory">Member Directory</a></li>
+                <li><a href="/brandbook">Brand Book</a></li>
+                <li><a href="/about">About Us</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <div class="bd-container">
+            <a href="javascript:history.back()" class="bd-back">&larr; Back to search</a>
+
+            <div class="bd-card">
+                <div class="bd-header">
+                    {% if brand.brand_image %}
+                    <img src="/static/brandbook/{{ brand.brand_image }}" alt="Brand {{ brand.brand_number }}" class="bd-brand-img">
+                    {% else %}
+                    <div class="bd-brand-img-placeholder">No image</div>
+                    {% endif %}
+                    <div class="bd-title">
+                        <div class="bd-number">{{ brand.brand_number }}</div>
+                        <div class="bd-name">{{ brand.registrar_name }}</div>
+                    </div>
+                </div>
+
+                <hr class="bd-divider">
+
+                <div class="bd-grid">
+                    {% if brand.registrar_address %}
+                    <div class="bd-label">Address</div>
+                    <div class="bd-value">{{ brand.registrar_address }}</div>
+                    {% endif %}
+
+                    {% if brand.registrar_city %}
+                    <div class="bd-label">City</div>
+                    <div class="bd-value">{{ brand.registrar_city }}</div>
+                    {% endif %}
+
+                    {% if brand.registrar_state %}
+                    <div class="bd-label">State</div>
+                    <div class="bd-value">{{ brand.registrar_state }}</div>
+                    {% endif %}
+
+                    {% if brand.registrar_zip %}
+                    <div class="bd-label">Zip Code</div>
+                    <div class="bd-value">{{ brand.registrar_zip }}</div>
+                    {% endif %}
+
+                    {% if brand.location_raw %}
+                    <div class="bd-label">Location</div>
+                    <div class="bd-value">
+                        {{ brand.location_raw }}
+                        {% if brand.location_description %}
+                        <div style="font-size: 0.85rem; color: #888; margin-top: 0.3rem;">
+                            {{ brand.location_description }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <div class="bd-label">Page</div>
+                    <div class="bd-value">{{ brand.page }}</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>Wyoming Brand Book data from the Wyoming Livestock Board. For informational purposes only.</p>
+    </footer>
+</body>
+</html>

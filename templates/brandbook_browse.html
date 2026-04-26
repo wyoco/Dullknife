@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wyoming Brand Book — Search Registered Brands</title>
+    <meta name="description" content="Search the Wyoming Brand Book. Find registered livestock brands by owner name, brand number, city, or state.">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="/static/favicon.ico">
+    <style>
+        .bb-hero { text-align: center; margin-bottom: 2rem; }
+        .bb-hero h1 { font-size: 1.8rem; color: #492e25; margin-bottom: 0.3rem; }
+        .bb-hero p { color: #666; font-size: 0.95rem; }
+        .bb-search { display: flex; gap: 0.5rem; max-width: 700px; margin: 1.5rem auto; flex-wrap: wrap; }
+        .bb-search input[type="text"] { flex: 1; min-width: 200px; padding: 0.6rem 0.8rem; border: 1px solid #999; border-radius: 4px; font-size: 1rem; }
+        .bb-search select { padding: 0.6rem; border: 1px solid #999; border-radius: 4px; font-size: 1rem; background: white; }
+        .bb-search button { padding: 0.6rem 1.4rem; background: #492e25; color: white; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; }
+        .bb-search button:hover { background: #7c4e3f; }
+        .bb-stats { text-align: center; color: #888; font-size: 0.85rem; margin-bottom: 1rem; }
+        .bb-results { max-width: 900px; margin: 0 auto; }
+        .bb-card { display: flex; gap: 1rem; align-items: center; background: white; border: 1px solid #ddd; border-radius: 6px; padding: 0.8rem 1rem; margin-bottom: 0.6rem; text-decoration: none; color: inherit; transition: box-shadow 0.15s; }
+        .bb-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+        .bb-card-img { width: 80px; height: 65px; object-fit: contain; border: 1px solid #eee; border-radius: 3px; background: white; flex-shrink: 0; }
+        .bb-card-img-placeholder { width: 80px; height: 65px; background: #f0f0f0; border: 1px solid #eee; border-radius: 3px; display: flex; align-items: center; justify-content: center; color: #ccc; font-size: 0.75rem; flex-shrink: 0; }
+        .bb-card-info { flex: 1; min-width: 0; }
+        .bb-card-number { font-weight: bold; color: #492e25; font-size: 0.9rem; }
+        .bb-card-name { font-size: 1rem; margin: 0.15rem 0; }
+        .bb-card-loc { font-size: 0.8rem; color: #888; }
+        .bb-card-meta { text-align: right; font-size: 0.8rem; color: #999; white-space: nowrap; }
+        .bb-pagination { display: flex; justify-content: center; align-items: center; gap: 0.5rem; margin: 1.5rem 0; flex-wrap: wrap; }
+        .bb-pagination a, .bb-pagination span { padding: 0.4rem 0.8rem; border: 1px solid #ccc; border-radius: 3px; text-decoration: none; color: #492e25; font-size: 0.9rem; }
+        .bb-pagination a:hover { background: #f0e8e2; }
+        .bb-pagination .active { background: #492e25; color: white; border-color: #492e25; }
+        .bb-pagination .disabled { color: #ccc; pointer-events: none; }
+        .bb-error { text-align: center; color: #c00; margin: 1rem 0; }
+        @media (max-width: 600px) {
+            .bb-search { flex-direction: column; }
+            .bb-search input[type="text"], .bb-search select, .bb-search button { width: 100%; }
+            .bb-card { flex-direction: column; text-align: center; }
+            .bb-card-meta { text-align: center; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo"><a href="/"><img src="/static/images/jackRound.jpg" alt="Dullknife" class="nav-logo"></a></div>
+            <ul>
+                <li><a href="/directory">Member Directory</a></li>
+                <li><a href="/brandbook">Brand Book</a></li>
+                <li><a href="/about">About Us</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <div class="bb-hero">
+            <h1>Wyoming Brand Book</h1>
+            <p>Search {{ total_brands|default(0) }} registered livestock brands</p>
+        </div>
+
+        <form class="bb-search" action="/brandbook" method="get">
+            <input type="text" name="q" value="{{ q }}" placeholder="Search by owner name, brand number, city...">
+            <select name="state">
+                <option value="">All States</option>
+                {% for s in states %}
+                <option value="{{ s }}" {% if state == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">Search</button>
+        </form>
+
+        {% if error %}
+        <div class="bb-error">{{ error }}</div>
+        {% endif %}
+
+        {% if q or state %}
+        <div class="bb-stats">
+            {{ total }} result{{ 's' if total != 1 else '' }} found
+            {% if q %}for "{{ q }}"{% endif %}
+            {% if state %}in {{ state }}{% endif %}
+        </div>
+        {% endif %}
+
+        <div class="bb-results">
+            {% for brand in brands %}
+            <a href="/brandbook/brand/{{ brand.brand_number }}" class="bb-card">
+                {% if brand.brand_image %}
+                <img src="/static/brandbook/{{ brand.brand_image }}" alt="Brand {{ brand.brand_number }}" class="bb-card-img">
+                {% else %}
+                <div class="bb-card-img-placeholder">No image</div>
+                {% endif %}
+                <div class="bb-card-info">
+                    <div class="bb-card-number">{{ brand.brand_number }}</div>
+                    <div class="bb-card-name">{{ brand.registrar_name }}</div>
+                    <div class="bb-card-loc">
+                        {% if brand.registrar_city %}{{ brand.registrar_city }}{% endif %}{% if brand.registrar_state %}, {{ brand.registrar_state }}{% endif %}
+                        {% if brand.registrar_zip %} {{ brand.registrar_zip }}{% endif %}
+                    </div>
+                </div>
+                <div class="bb-card-meta">
+                    {% if brand.location_raw %}LOC: {{ brand.location_raw }}{% endif %}
+                </div>
+            </a>
+            {% endfor %}
+
+            {% if not brands and (q or state) %}
+            <div style="text-align: center; color: #888; margin: 2rem 0;">No brands found matching your search.</div>
+            {% endif %}
+        </div>
+
+        {% if total_pages > 1 %}
+        <div class="bb-pagination">
+            {% if page > 1 %}
+            <a href="/brandbook?q={{ q }}&state={{ state }}&page=1">&laquo;</a>
+            <a href="/brandbook?q={{ q }}&state={{ state }}&page={{ page - 1 }}">&lsaquo;</a>
+            {% else %}
+            <span class="disabled">&laquo;</span>
+            <span class="disabled">&lsaquo;</span>
+            {% endif %}
+
+            <span class="active">Page {{ page }} of {{ total_pages }}</span>
+
+            {% if page < total_pages %}
+            <a href="/brandbook?q={{ q }}&state={{ state }}&page={{ page + 1 }}">&rsaquo;</a>
+            <a href="/brandbook?q={{ q }}&state={{ state }}&page={{ total_pages }}">&raquo;</a>
+            {% else %}
+            <span class="disabled">&rsaquo;</span>
+            <span class="disabled">&raquo;</span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </main>
+
+    <footer>
+        <p>Wyoming Brand Book data from the Wyoming Livestock Board. For informational purposes only.</p>
+    </footer>
+</body>
+</html>

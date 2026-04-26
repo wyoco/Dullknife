@@ -1,11 +1,12 @@
 from fastapi import FastAPI, Request, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from routers import directory, membership, auth, pages, admin
+from routers import directory, membership, auth, pages, admin, questionnaire, brandbook
 from database import get_db
 
 app = FastAPI()
 
+app.mount("/static/brandbook", StaticFiles(directory="/var/www/pyengines/brandbook"), name="brandbook_static")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
@@ -14,6 +15,8 @@ app.include_router(membership.router)
 app.include_router(auth.router)
 app.include_router(pages.router)
 app.include_router(admin.router)
+app.include_router(questionnaire.router)
+app.include_router(brandbook.router)
 
 @app.get("/")
 def landing_page(request: Request, db=Depends(get_db)):

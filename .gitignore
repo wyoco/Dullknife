@@ -6,3 +6,4 @@ __pycache__/
 static/images/
 .member_session_key
 .admin_session_key
+static/brandbook
