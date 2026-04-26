@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tracking — Overview</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="/static/favicon.ico">
+    <style>
+        .tk-container { max-width: 800px; margin: 0 auto; }
+        .tk-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .tk-header h1 { font-size: 1.4rem; color: #492e25; }
+        .tk-btn { padding: 0.5rem 1.2rem; background: #492e25; color: white; border: none; border-radius: 4px; font-size: 0.9rem; cursor: pointer; text-decoration: none; display: inline-block; }
+        .tk-btn:hover { background: #7c4e3f; }
+        .tk-btn-sm { padding: 0.3rem 0.8rem; font-size: 0.8rem; }
+        .tk-table { width: 100%; border-collapse: collapse; background: white; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; }
+        .tk-table th { background: #492e25; color: white; text-align: left; padding: 0.6rem 0.8rem; font-size: 0.85rem; }
+        .tk-table td { padding: 0.6rem 0.8rem; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+        .tk-table tr:hover { background: #f9f5f2; }
+        .tk-table a { color: #492e25; font-weight: bold; text-decoration: none; }
+        .tk-table a:hover { text-decoration: underline; }
+        .tk-status { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: bold; }
+        .tk-active { background: #d4edda; color: #155724; }
+        .tk-completed { background: #e2e3e5; color: #6c757d; }
+        .tk-empty { text-align: center; color: #888; padding: 2rem; }
+        .tk-user-bar { text-align: right; font-size: 0.85rem; color: #888; margin-bottom: 1rem; }
+        .tk-user-bar a { color: #492e25; }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo"><a href="/"><img src="/static/images/jackRound.jpg" alt="Dullknife" class="nav-logo"></a></div>
+            <ul>
+                <li><a href="/tracking">Tracking</a></li>
+                <li><a href="/tracking/logout">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <div class="tk-container">
+            <div class="tk-user-bar">Logged in as {{ user.display_name }} | <a href="/tracking/logout">Logout</a></div>
+
+            <div class="tk-header">
+                <h1>Contractor and Employee Tracking</h1>
+                <a href="/tracking/new" class="tk-btn">New Job</a>
+            </div>
+
+            <table class="tk-table">
+                <thead>
+                    <tr>
+                        <th>Job Number</th>
+                        <th>Contractor / Employee</th>
+                        <th>Start Date</th>
+                        <th>Status</th>
+                        <th style="text-align: right;">Total Hours</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if jobs %}
+                    {% for job in jobs %}
+                    <tr>
+                        <td><a href="/tracking/job/{{ job.id }}">{{ job.job_number }}</a></td>
+                        <td>{{ job.identity_name }}</td>
+                        <td>{{ job.start_date }}</td>
+                        <td>
+                            {% if job.is_completed %}
+                            <span class="tk-status tk-completed">Completed</span>
+                            {% else %}
+                            <span class="tk-status tk-active">Active</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right;">{{ "%.1f"|format(job.total_hours) }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="tk-empty">No jobs yet. Click "New Job" to get started.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </main>
+    <footer><p>Enerflex Job Tracking</p></footer>
+</body>
+</html>

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tracking — Job {{ job.job_number }}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="/static/favicon.ico">
+    <style>
+        .tk-container { max-width: 700px; margin: 0 auto; }
+        .tk-back { display: inline-block; margin-bottom: 1rem; color: #492e25; text-decoration: none; font-size: 0.9rem; }
+        .tk-back:hover { text-decoration: underline; }
+        .tk-card { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem; }
+        .tk-job-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; }
+        .tk-job-title { font-size: 1.3rem; color: #492e25; font-weight: bold; }
+        .tk-job-meta { color: #888; font-size: 0.85rem; margin-top: 0.2rem; }
+        .tk-status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.8rem; font-weight: bold; }
+        .tk-active { background: #d4edda; color: #155724; }
+        .tk-completed { background: #e2e3e5; color: #6c757d; }
+        .tk-divider { border: none; border-top: 1px solid #eee; margin: 1rem 0; }
+        .tk-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+        .tk-table th { text-align: left; padding: 0.5rem; font-size: 0.85rem; color: #666; border-bottom: 2px solid #ddd; }
+        .tk-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+        .tk-table input[type="date"], .tk-table input[type="number"] { padding: 0.3rem 0.4rem; border: 1px solid #ccc; border-radius: 3px; font-size: 0.9rem; }
+        .tk-table input[type="date"] { width: 160px; }
+        .tk-table input[type="number"] { width: 80px; text-align: right; }
+        .tk-table .tk-new-row { background: #f9f5f2; }
+        .tk-total-row { font-weight: bold; border-top: 2px solid #492e25; }
+        .tk-total-row td { padding-top: 0.6rem; }
+        .tk-btn { padding: 0.4rem 1rem; background: #492e25; color: white; border: none; border-radius: 4px; font-size: 0.85rem; cursor: pointer; text-decoration: none; display: inline-block; }
+        .tk-btn:hover { background: #7c4e3f; }
+        .tk-btn-sm { padding: 0.2rem 0.5rem; font-size: 0.75rem; }
+        .tk-btn-save { background: #2e7d32; }
+        .tk-btn-save:hover { background: #1b5e20; }
+        .tk-btn-cancel { background: #999; }
+        .tk-btn-cancel:hover { background: #777; }
+        .tk-btn-danger { background: #c62828; }
+        .tk-btn-danger:hover { background: #b71c1c; }
+        .tk-btn-outline { background: white; color: #492e25; border: 1px solid #492e25; }
+        .tk-btn-outline:hover { background: #f0e8e2; }
+        .tk-actions { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
+        .tk-bottom-buttons { display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; }
+        .tk-delete-actions { display: flex; gap: 0.5rem; }
+
+        /* Delete confirmation modal */
+        .tk-modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .tk-modal-overlay.active { display: flex; }
+        .tk-modal { background: white; border-radius: 8px; padding: 1.5rem; max-width: 400px; width: 90%; text-align: center; }
+        .tk-modal p { margin-bottom: 1rem; font-size: 0.95rem; }
+        .tk-modal-buttons { display: flex; gap: 0.5rem; justify-content: center; }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo"><a href="/"><img src="/static/images/jackRound.jpg" alt="Dullknife" class="nav-logo"></a></div>
+            <ul>
+                <li><a href="/tracking">Tracking</a></li>
+                <li><a href="/tracking/logout">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <div class="tk-container">
+            <a href="/tracking" class="tk-back">&larr; Back to Overview</a>
+
+            <div class="tk-card">
+                <div class="tk-job-header">
+                    <div>
+                        <div class="tk-job-title">Job {{ job.job_number }}</div>
+                        <div class="tk-job-meta">{{ job.identity_name }} &middot; Started {{ job.start_date }}</div>
+                    </div>
+                    <form method="post" action="/tracking/job/{{ job.id }}/toggle-completed" style="margin:0;">
+                        {% if job.is_completed %}
+                        <button type="submit" class="tk-status-badge tk-completed" style="cursor:pointer; border:none;" title="Click to mark active">Completed</button>
+                        {% else %}
+                        <button type="submit" class="tk-status-badge tk-active" style="cursor:pointer; border:none;" title="Click to mark completed">Active</button>
+                        {% endif %}
+                    </form>
+                </div>
+
+                <hr class="tk-divider">
+
+                <!-- Time entries table -->
+                <table class="tk-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th style="text-align: right;">Hours</th>
+                            <th style="width: 100px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in entries %}
+                        <tr>
+                            <td>
+                                <form method="post" action="/tracking/job/{{ job.id }}/update-entry/{{ entry.id }}" style="display:inline-flex; gap:0.5rem; align-items:center;" id="form-{{ entry.id }}">
+                                    <input type="date" name="work_date" value="{{ entry.work_date }}">
+                            </td>
+                            <td style="text-align: right;">
+                                    <input type="number" name="hours" value="{{ entry.hours }}" step="0.5" min="0" max="24">
+                                </form>
+                            </td>
+                            <td style="text-align: right;">
+                                <button type="submit" form="form-{{ entry.id }}" class="tk-btn tk-btn-sm tk-btn-save" title="Save changes">Save</button>
+                                <form method="post" action="/tracking/job/{{ job.id }}/delete-entry/{{ entry.id }}" style="display:inline;">
+                                    <button type="submit" class="tk-btn tk-btn-sm tk-btn-danger" title="Delete entry" onclick="return confirm('Delete this time entry?')">&#10005;</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+
+                        <!-- New entry row -->
+                        <tr class="tk-new-row">
+                            <form method="post" action="/tracking/job/{{ job.id }}/add-entry">
+                            <td>
+                                <input type="date" name="new_date">
+                            </td>
+                            <td style="text-align: right;">
+                                <input type="number" name="new_hours" step="0.5" min="0" max="24" placeholder="0.0">
+                            </td>
+                            <td style="text-align: right;">
+                                <button type="submit" class="tk-btn tk-btn-sm tk-btn-save">Add</button>
+                            </td>
+                            </form>
+                        </tr>
+
+                        <!-- Total row -->
+                        <tr class="tk-total-row">
+                            <td>Total Hours</td>
+                            <td style="text-align: right;">{{ "%.1f"|format(total_hours) }}</td>
+                            <td></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Email / Save section -->
+                <hr class="tk-divider">
+                <p style="color: #666; font-size: 0.9rem; text-align: center; margin-bottom: 1rem;">To email a job report, or save this job report to your computer, use the buttons below.</p>
+                <div style="display: flex; gap: 0.5rem; justify-content: center; margin-bottom: 1rem;">
+                    <button type="button" class="tk-btn" style="min-width: 140px;" onclick="document.getElementById('emailModal').classList.add('active')">Email</button>
+                    <button type="button" class="tk-btn" style="min-width: 140px;" onclick="saveReport()">Save to PC</button>
+                </div>
+                <hr class="tk-divider">
+
+                <!-- Bottom actions -->
+                <div class="tk-bottom-buttons">
+                    <a href="/tracking" class="tk-btn tk-btn-cancel">Back to Overview</a>
+                    <div class="tk-delete-actions">
+                        <form method="post" action="/tracking/job/{{ job.id }}/toggle-completed" style="margin:0;">
+                            {% if job.is_completed %}
+                            <button type="submit" class="tk-btn tk-btn-outline">Mark Active</button>
+                            {% else %}
+                            <button type="submit" class="tk-btn tk-btn-outline">Job Completed</button>
+                            {% endif %}
+                        </form>
+                        <button type="button" class="tk-btn tk-btn-danger" onclick="document.getElementById('deleteModal').classList.add('active')">Delete Job</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Email modal -->
+        <div class="tk-modal-overlay" id="emailModal">
+            <div class="tk-modal">
+                <p>Please input recipient email address and press Send. Or press Cancel.</p>
+                <form method="post" action="/tracking/job/{{ job.id }}/email-report" id="emailForm">
+                    <input type="email" name="recipient" placeholder="email@example.com" required style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; box-sizing: border-box; margin-bottom: 1rem;">
+                    <div class="tk-modal-buttons">
+                        <button type="submit" class="tk-btn">Send</button>
+                        <button type="button" class="tk-btn tk-btn-cancel" onclick="document.getElementById('emailModal').classList.remove('active')">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Delete confirmation modal -->
+        <div class="tk-modal-overlay" id="deleteModal">
+            <div class="tk-modal">
+                <p>You have clicked the Delete Job button. If you intended to delete this job click the "Really Delete Job" button. If you don't want to delete this job click Cancel.</p>
+                <div class="tk-modal-buttons">
+                    <form method="post" action="/tracking/job/{{ job.id }}/delete">
+                        <button type="submit" class="tk-btn tk-btn-danger">Really Delete Job</button>
+                    </form>
+                    <button type="button" class="tk-btn tk-btn-cancel" onclick="document.getElementById('deleteModal').classList.remove('active')">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </main>
+    <footer><p>Enerflex Job Tracking</p></footer>
+
+    <script>
+    function saveReport() {
+        var jobNumber = "{{ job.job_number }}";
+        var name = "{{ job.identity_name }}";
+        var startDate = "{{ job.start_date }}";
+        var completed = "{{ 'Completed' if job.is_completed else 'Active' }}";
+        var today = new Date().toISOString().slice(0, 10);
+
+        var report = "Job Report\n";
+        report += "==========================================================\n\n";
+        report += "Job Number:    " + jobNumber + "\n";
+        report += "Name:          " + name + "\n";
+        report += "Start Date:    " + startDate + "\n";
+        report += "Status:        " + completed + "\n";
+        report += "Report Date:   " + today + "\n\n";
+        report += "----------------------------------------------------------\n";
+        report += "Date                Hours\n";
+        report += "----------------------------------------------------------\n";
+
+        {% for entry in entries %}
+        report += "{{ entry.work_date }}          {{ entry.hours }}\n";
+        {% endfor %}
+
+        report += "----------------------------------------------------------\n";
+        report += "Total Hours:        {{ '%.1f'|format(total_hours) }}\n";
+        report += "==========================================================\n";
+
+        var blob = new Blob([report], {type: "text/plain"});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = name.replace(/[^a-zA-Z0-9 ]/g, '') + " " + today + ".txt";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+    </script>
+</body>
+</html>
